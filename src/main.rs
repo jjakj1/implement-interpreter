@@ -1,4 +1,5 @@
 use implement_parser::repl;
+use std::io::stdout;
 use users::{get_current_uid, get_user_by_uid};
 
 fn main() {
@@ -8,5 +9,5 @@ fn main() {
         user.name()
     );
     println!("Feel free to type in commands");
-    repl::start().unwrap();
+    repl::start(stdout()).unwrap();
 }

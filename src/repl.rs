@@ -1,22 +1,24 @@
-use crate::{lexer::Lexer, token::EOF};
-use std::io;
+use crate::{lexer::Lexer, token::TokenType};
+use std::io::{self, Write};
 
 const PROMPT: &str = ">> ";
 
-pub fn start() -> io::Result<()> {
-    print!("{}", PROMPT);
-    io::Write::flush(&mut io::stdout()).expect("flash failed");
+pub fn start<W: Write>(mut output: W) -> io::Result<()> {
+    let mut line = String::new();
 
-    let mut user_input = String::new();
-    io::stdin().read_line(&mut user_input)?;
+    write!(output, "{}", PROMPT)?;
+    io::Write::flush(&mut io::stdout())?;
 
-    let mut lexer = Lexer::new(user_input);
+    io::stdin().read_line(&mut line)?;
+    let mut lexer = Lexer::new(line);
 
-    let mut token = lexer.next_token();
+    loop {
+        let token = lexer.next_token();
+        writeln!(output, "{:?}", token)?;
 
-    while token.token_type != EOF {
-        println!("{:?}", token);
-        token = lexer.next_token();
+        if token.token_type == TokenType::EOF {
+            break;
+        }
     }
 
     Ok(())
