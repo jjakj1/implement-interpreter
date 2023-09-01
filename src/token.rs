@@ -1,6 +1,7 @@
+use lazy_static::lazy_static;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub literal: String,
@@ -15,8 +16,8 @@ impl Token {
     }
 }
 
-pub fn lookup_identifier(identifier: &str) -> TokenType {
-    let keywords: HashMap<&str, TokenType> = HashMap::from([
+lazy_static! {
+    static ref KEYWORDS: HashMap<&'static str, TokenType> = HashMap::from([
         ("fn", TokenType::Function),
         ("let", TokenType::Let),
         ("true", TokenType::True),
@@ -25,11 +26,13 @@ pub fn lookup_identifier(identifier: &str) -> TokenType {
         ("else", TokenType::Else),
         ("return", TokenType::Return),
     ]);
-
-    *keywords.get(identifier).unwrap_or(&TokenType::Ident)
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+pub fn lookup_identifier(identifier: &str) -> TokenType {
+    *KEYWORDS.get(identifier).unwrap_or(&TokenType::Ident)
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
 pub enum TokenType {
     Illegal,
     EOF,
