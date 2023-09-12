@@ -1,5 +1,8 @@
-use crate::{ast::traits::Node, lexer::Lexer, parser::Parser};
+use crate::{
+    ast::traits::AsNode, environment::Environment, evaluator::eval, lexer::Lexer, parser::Parser,
+};
 use std::io::{self, Write};
+use std::{cell::RefCell, rc::Rc};
 
 const PROMPT: &str = ">> ";
 
@@ -19,7 +22,11 @@ pub fn start<W: Write>(mut output: W) -> io::Result<()> {
             continue;
         }
 
-        writeln!(output, "{}", program.string())?;
+        let env = Environment::new();
+        let evaluated = eval(program.as_node(), Rc::new(RefCell::new(env)));
+        if let Some(evaluated) = evaluated {
+            writeln!(output, "{}", evaluated.inspect())?;
+        }
     }
 }
 

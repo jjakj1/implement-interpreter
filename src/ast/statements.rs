@@ -1,8 +1,13 @@
 use crate::ast::expressions::Identifier;
 use crate::ast::traits::{Expression, Node, Statement};
+use crate::environment::Environment;
+use crate::evaluator::{eval, eval_block_statement, is_error};
+use crate::object;
 use crate::token::Token;
 use std::any::Any;
+use std::{cell::RefCell, rc::Rc};
 
+#[derive(Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -10,12 +15,12 @@ pub struct LetStatement {
 }
 
 impl Node for LetStatement {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn token_literal(&self) -> &str {
+        &self.token.literal
     }
 
     fn string(&self) -> String {
@@ -28,24 +33,38 @@ impl Node for LetStatement {
         ));
         out
     }
+
+    fn eval_to_object(
+        &self,
+        environment: Rc<RefCell<Environment>>,
+    ) -> Option<Box<dyn object::Object>> {
+        let value = eval(self.value.as_node(), environment.clone());
+        if is_error(&value) {
+            return value;
+        }
+        environment
+            .borrow_mut()
+            .set(self.name.value.clone(), value?)
+    }
 }
 
 impl Statement for LetStatement {
     fn statement_node(&self) {}
 }
 
+#[derive(Clone)]
 pub struct ReturnStatement {
     pub token: Token,
     pub return_value: Box<dyn Expression>,
 }
 
 impl Node for ReturnStatement {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn token_literal(&self) -> &str {
+        &self.token.literal
     }
 
     fn string(&self) -> String {
@@ -57,28 +76,47 @@ impl Node for ReturnStatement {
         ));
         out
     }
+
+    fn eval_to_object(
+        &self,
+        environment: Rc<RefCell<Environment>>,
+    ) -> Option<Box<dyn object::Object>> {
+        let value = eval(self.return_value.as_node(), environment);
+        if is_error(&value) {
+            return value;
+        }
+        Some(Box::new(object::ReturnValue { value: value? }))
+    }
 }
 
 impl Statement for ReturnStatement {
     fn statement_node(&self) {}
 }
 
+#[derive(Clone)]
 pub struct ExpressionStatement {
     pub token: Token,
     pub expression: Box<dyn Expression>,
 }
 
 impl Node for ExpressionStatement {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
 
+    fn token_literal(&self) -> &str {
+        &self.token.literal
+    }
+
     fn string(&self) -> String {
         self.expression.string()
+    }
+
+    fn eval_to_object(
+        &self,
+        environment: Rc<RefCell<Environment>>,
+    ) -> Option<Box<dyn object::Object>> {
+        eval(self.expression.as_node(), environment)
     }
 }
 
@@ -90,18 +128,19 @@ impl Expression for ExpressionStatement {
     fn expression_node(&self) {}
 }
 
+#[derive(Clone)]
 pub struct BlockStatement {
     pub token: Token, // '{' 词法单元
     pub statements: Vec<Box<dyn Statement>>,
 }
 
 impl Node for BlockStatement {
-    fn token_literal(&self) -> &str {
-        &self.token.literal
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn token_literal(&self) -> &str {
+        &self.token.literal
     }
 
     fn string(&self) -> String {
@@ -110,6 +149,13 @@ impl Node for BlockStatement {
             result.push_str(&statement.string())
         }
         result
+    }
+
+    fn eval_to_object(
+        &self,
+        environment: Rc<RefCell<Environment>>,
+    ) -> Option<Box<dyn object::Object>> {
+        eval_block_statement(self, environment)
     }
 }
 

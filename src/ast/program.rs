@@ -1,19 +1,24 @@
 use crate::ast::traits::{Node, Statement};
+use crate::environment::Environment;
+use crate::evaluator::eval_program;
+use crate::object::Object;
 use std::any::Any;
+use std::{cell::RefCell, rc::Rc};
 
+#[derive(Clone)]
 pub struct Program {
     pub statements: Vec<Box<dyn Statement>>,
 }
 
 impl Node for Program {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn token_literal(&self) -> &str {
         self.statements
             .first()
             .map_or("", |statement| statement.token_literal())
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     fn string(&self) -> String {
@@ -22,5 +27,9 @@ impl Node for Program {
             out.push_str(&statement.string())
         }
         out
+    }
+
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Option<Box<dyn Object>> {
+        eval_program(self, environment)
     }
 }
