@@ -1,8 +1,8 @@
 use crate::ast::expressions::Identifier;
 use crate::ast::traits::{Expression, Node, Statement};
-use crate::environment::Environment;
-use crate::evaluator::{eval, eval_block_statement, is_error};
-use crate::object;
+use crate::evaluator::environment::Environment;
+use crate::evaluator::eval::{eval, eval_block_statement, is_error};
+use crate::evaluator::object;
 use crate::token::Token;
 use std::any::Any;
 use std::{cell::RefCell, rc::Rc};

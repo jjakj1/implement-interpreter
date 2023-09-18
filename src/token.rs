@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -16,8 +16,8 @@ impl Token {
     }
 }
 
-lazy_static! {
-    static ref KEYWORDS: HashMap<&'static str, TokenType> = HashMap::from([
+static KEYWORDS: Lazy<HashMap<&'static str, TokenType>> = Lazy::new(|| {
+    HashMap::from([
         ("fn", TokenType::Function),
         ("let", TokenType::Let),
         ("true", TokenType::True),
@@ -25,8 +25,8 @@ lazy_static! {
         ("if", TokenType::If),
         ("else", TokenType::Else),
         ("return", TokenType::Return),
-    ]);
-}
+    ])
+});
 
 pub fn lookup_identifier(identifier: &str) -> TokenType {
     *KEYWORDS.get(identifier).unwrap_or(&TokenType::Ident)
@@ -61,4 +61,8 @@ pub enum TokenType {
     If,
     Else,
     Return,
+    String,
+    LeftBracket,
+    RightBracket,
+    Colon,
 }

@@ -1,16 +1,17 @@
+use super::traits::AsNode;
 use crate::ast::statements::BlockStatement;
 use crate::ast::traits::{Expression, Node};
-use crate::environment::Environment;
-use crate::evaluator::{
-    apply_function, eval, eval_expressions, eval_infix_expression, eval_prefix_expression,
-    is_error, is_truthy,
+use crate::evaluator::environment::Environment;
+use crate::evaluator::eval::{
+    apply_function, eval, eval_expressions, eval_hash_literal, eval_identifier,
+    eval_index_expression, eval_infix_expression, eval_prefix_expression, is_error, is_truthy,
 };
-use crate::object::{self, Function};
+use crate::evaluator::object::{self, Array, Function, StringObject};
 use crate::token::Token;
+use by_address::ByAddress;
 use std::any::Any;
+use std::collections::HashMap;
 use std::{cell::RefCell, rc::Rc};
-
-use super::traits::AsNode;
 
 // 标识符
 #[derive(Clone)]
@@ -36,12 +37,7 @@ impl Node for Identifier {
         &self,
         environment: Rc<RefCell<Environment>>,
     ) -> Option<Box<dyn object::Object>> {
-        environment
-            .borrow()
-            .get(&self.value)
-            .or(Some(Box::new(object::Error {
-                message: format!("identifier not found: {}", self.value),
-            })))
+        eval_identifier(self, environment)
     }
 }
 
@@ -338,5 +334,163 @@ impl Node for InfixExpression {
 }
 
 impl Expression for InfixExpression {
+    fn expression_node(&self) {}
+}
+
+#[derive(Clone)]
+pub struct StringLiteral {
+    pub token: Token,
+    pub value: String,
+}
+
+impl Node for StringLiteral {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn string(&self) -> String {
+        self.value.clone()
+    }
+
+    fn token_literal(&self) -> &str {
+        &self.token.literal
+    }
+
+    fn eval_to_object(
+        &self,
+        _environment: Rc<RefCell<Environment>>,
+    ) -> Option<Box<dyn object::Object>> {
+        Some(Box::new(StringObject {
+            value: self.value.clone(),
+        }))
+    }
+}
+
+impl Expression for StringLiteral {
+    fn expression_node(&self) {}
+}
+
+#[derive(Clone)]
+pub struct ArrayLiteral {
+    pub token: Token, // [ 词法单元
+    pub elements: Vec<Box<dyn Expression>>,
+}
+
+impl Node for ArrayLiteral {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn string(&self) -> String {
+        let elements = self
+            .elements
+            .iter()
+            .map(|element| element.string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("[{}]", elements)
+    }
+
+    fn token_literal(&self) -> &str {
+        &self.token.literal
+    }
+
+    fn eval_to_object(
+        &self,
+        environment: Rc<RefCell<Environment>>,
+    ) -> Option<Box<dyn object::Object>> {
+        let elements = eval_expressions(&self.elements, environment)?;
+        if elements.len() == 1
+            && matches!(
+                elements.get(0).unwrap().object_type(),
+                object::ObjectType::Error
+            )
+        {
+            let first = dyn_clone::clone_box(elements[0].as_ref());
+            return Some(first);
+        }
+
+        Some(Box::new(Array { elements }))
+    }
+}
+
+impl Expression for ArrayLiteral {
+    fn expression_node(&self) {}
+}
+
+#[derive(Clone)]
+pub struct IndexExpression {
+    pub token: Token,
+    pub left: Box<dyn Expression>,
+    pub index: Box<dyn Expression>,
+}
+
+impl Node for IndexExpression {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn string(&self) -> String {
+        format!("({}[{}])", self.left.string(), self.index.string())
+    }
+
+    fn token_literal(&self) -> &str {
+        &self.token.literal
+    }
+
+    fn eval_to_object(
+        &self,
+        environment: Rc<RefCell<Environment>>,
+    ) -> Option<Box<dyn object::Object>> {
+        let left = eval(self.left.as_node(), Rc::clone(&environment));
+        if is_error(&left) {
+            return left;
+        }
+        let index = eval(self.index.as_node(), environment);
+        if is_error(&index) {
+            return index;
+        }
+        eval_index_expression(left, index)
+    }
+}
+
+impl Expression for IndexExpression {
+    fn expression_node(&self) {}
+}
+
+#[derive(Clone)]
+pub struct HashLiteral {
+    pub token: Token,
+    pub pairs: HashMap<ByAddress<Box<dyn Expression>>, Box<dyn Expression>>,
+}
+
+impl Node for HashLiteral {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn string(&self) -> String {
+        let key_values = self
+            .pairs
+            .iter()
+            .map(|(key, value)| format!("{}: {}", key.string(), value.string()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("{{{}}}", key_values)
+    }
+
+    fn token_literal(&self) -> &str {
+        &self.token.literal
+    }
+
+    fn eval_to_object(
+        &self,
+        environment: Rc<RefCell<Environment>>,
+    ) -> Option<Box<dyn object::Object>> {
+        eval_hash_literal(self, environment)
+    }
+}
+
+impl Expression for HashLiteral {
     fn expression_node(&self) {}
 }

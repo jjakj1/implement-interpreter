@@ -45,7 +45,11 @@ fn test_source_code_token() {
         }
 
         10 == 10;
-        10 != 9;";
+        10 != 9;
+        \"foobar\"
+        \"foo bar\"
+        [1, 2];
+        {\"foo\": \"bar\"}";
 
     let tests = [
         (TokenType::Let, "let"),
@@ -120,6 +124,19 @@ fn test_source_code_token() {
         (TokenType::NotEqual, "!="),
         (TokenType::Int, "9"),
         (TokenType::Semicolon, ";"),
+        (TokenType::String, "foobar"),
+        (TokenType::String, "foo bar"),
+        (TokenType::LeftBracket, "["),
+        (TokenType::Int, "1"),
+        (TokenType::Comma, ","),
+        (TokenType::Int, "2"),
+        (TokenType::RightBracket, "]"),
+        (TokenType::Semicolon, ";"),
+        (TokenType::LeftBrace, "{"),
+        (TokenType::String, "foo"),
+        (TokenType::Colon, ":"),
+        (TokenType::String, "bar"),
+        (TokenType::RightBrace, "}"),
         (TokenType::EOF, ""),
     ];
 

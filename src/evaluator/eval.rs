@@ -1,8 +1,12 @@
+use super::environment::Environment;
+use super::object::{
+    self, Boolean, HashPair, Hashable, Integer, Object, ObjectType, StringObject, BUILTINS,
+};
+use crate::ast::expressions::{HashLiteral, Identifier};
 use crate::ast::program::Program;
 use crate::ast::statements::BlockStatement;
 use crate::ast::traits::{AsNode, Expression, Node};
-use crate::environment::Environment;
-use crate::object::{self, Boolean, Integer, Object, ObjectType};
+use std::collections::HashMap;
 use std::{cell::RefCell, rc::Rc};
 
 // TODO: Rust 里面好像不允许对一个 dynamic dispatch 的类型做判断，但我不太确定：https://www.reddit.com/r/rust/comments/ajd0je/how_to_get_type_of_a_boximpl_trait/
@@ -17,10 +21,7 @@ pub fn eval_program(program: &Program, env: Rc<RefCell<Environment>>) -> Option<
         result = eval(statement.as_node(), env.clone());
         if let Some(object) = &result {
             if matches!(object.object_type(), ObjectType::ReturnValue) {
-                let return_object = result?
-                    .as_any()
-                    .downcast::<crate::object::ReturnValue>()
-                    .ok()?;
+                let return_object = result?.as_any().downcast::<object::ReturnValue>().ok()?;
                 return Some(return_object.value);
             } else if matches!(object.object_type(), ObjectType::Error) {
                 return result;
@@ -80,6 +81,12 @@ pub fn eval_infix_expression(
         let left_boolean = left.as_any().downcast::<Boolean>().ok()?;
         let right_boolean = right.as_any().downcast::<Boolean>().ok()?;
         eval_boolean_infix_expression(*left_boolean, operator, *right_boolean)
+    } else if matches!(left.object_type(), ObjectType::String)
+        && matches!(right.object_type(), ObjectType::String)
+    {
+        let left_string = left.as_any().downcast::<StringObject>().ok()?;
+        let right_string = right.as_any().downcast::<StringObject>().ok()?;
+        eval_string_infix_expression(*left_string, operator, *right_string)
     } else if left.object_type() != right.object_type() {
         Some(Box::new(object::Error {
             message: format!(
@@ -118,6 +125,111 @@ pub fn eval_expressions(
     Some(results)
 }
 
+pub fn eval_identifier(
+    identifier: &Identifier,
+    env: Rc<RefCell<Environment>>,
+) -> Option<Box<dyn Object>> {
+    env.borrow()
+        .get(&identifier.value)
+        .or_else(|| {
+            BUILTINS
+                .get(&*identifier.value) // https://stackoverflow.com/questions/65549983/trait-borrowstring-is-not-implemented-for-str
+                .map(|buildin| dyn_clone::clone_box(buildin) as Box<dyn Object>)
+        })
+        .or(Some(Box::new(object::Error {
+            message: format!("identifier not found: {}", identifier.value),
+        })))
+}
+
+pub fn eval_index_expression(
+    left: Option<Box<dyn Object>>,
+    index: Option<Box<dyn Object>>,
+) -> Option<Box<dyn Object>> {
+    let left = left?;
+    let index = index?;
+    let left_type = left.object_type();
+    if matches!(left.object_type(), ObjectType::Array)
+        && matches!(index.object_type(), ObjectType::Integer)
+    {
+        let array = left.as_any().downcast::<object::Array>().ok()?;
+        let index = index.as_any().downcast::<object::Integer>().ok()?;
+        if array.elements.len() <= index.value as usize || index.value < 0 {
+            return Some(Box::new(object::Null));
+        }
+
+        return Some(dyn_clone::clone_box(
+            array.elements[index.value as usize].as_ref(),
+        ));
+    } else if matches!(left.object_type(), ObjectType::Hash) {
+        let hash = left.as_any().downcast::<object::Hash>().ok()?;
+        return eval_hash_index_expression(hash.as_ref(), index);
+    }
+
+    Some(Box::new(object::Error {
+        message: format!("index operator not supported: {:?}", left_type),
+    }))
+}
+
+pub fn eval_hash_literal(
+    node: &HashLiteral,
+    env: Rc<RefCell<Environment>>,
+) -> Option<Box<dyn Object>> {
+    let mut pairs = HashMap::new();
+    for (key, value) in node.pairs.iter() {
+        let evaluated_key = eval(key.as_node(), Rc::clone(&env));
+        if is_error(&evaluated_key) {
+            return evaluated_key;
+        }
+        let evaluated_value = eval(value.as_node(), Rc::clone(&env));
+        if is_error(&evaluated_value) {
+            return evaluated_value;
+        }
+        let evaluated_key = evaluated_key?;
+        let evaluated_value = evaluated_value?;
+        match evaluated_key.object_type() {
+            object::ObjectType::String => {
+                let str = evaluated_key
+                    .as_any()
+                    .downcast::<object::StringObject>()
+                    .ok()?;
+                pairs.insert(
+                    str.hash_key(),
+                    HashPair {
+                        key: str,
+                        value: evaluated_value,
+                    },
+                );
+            }
+            object::ObjectType::Integer => {
+                let integer = evaluated_key.as_any().downcast::<object::Integer>().ok()?;
+                pairs.insert(
+                    integer.hash_key(),
+                    HashPair {
+                        key: integer,
+                        value: evaluated_value,
+                    },
+                );
+            }
+            object::ObjectType::Boolean => {
+                let boolean = evaluated_key.as_any().downcast::<object::Boolean>().ok()?;
+                pairs.insert(
+                    boolean.hash_key(),
+                    HashPair {
+                        key: boolean,
+                        value: evaluated_value,
+                    },
+                );
+            }
+            _ => {
+                return Some(Box::new(object::Error {
+                    message: format!("unusable as hash key: {:?}", evaluated_key.object_type()),
+                }));
+            }
+        };
+    }
+    Some(Box::new(object::Hash { pairs }))
+}
+
 pub fn is_truthy(object: Option<Box<dyn Object>>) -> Option<bool> {
     let object = object?;
     match object.object_type() {
@@ -138,28 +250,32 @@ pub fn is_error(object: &Option<Box<dyn Object>>) -> bool {
     }
 }
 
-// TODO: 感觉很多地方的 Option 可以去掉
 pub fn apply_function(
     func: Box<dyn Object>,
     args: Vec<Box<dyn Object>>,
 ) -> Option<Box<dyn Object>> {
     let func_type = func.object_type();
-    if let Ok(f) = func.as_any().downcast::<object::Function>() {
-        let env = extend_function_env(f.as_ref(), args);
-        let object = eval(f.body.as_node(), Rc::new(RefCell::new(env)))?;
-        return Some(unwrap_return_value(object));
+    match func.object_type() {
+        ObjectType::Function => {
+            let f = func.as_any().downcast::<object::Function>().ok()?;
+            let env = extend_function_env(f.as_ref(), args);
+            let object = eval(f.body.as_node(), Rc::new(RefCell::new(env)))?;
+            Some(unwrap_return_value(object))
+        }
+        ObjectType::Builtin => {
+            let f = func.as_any().downcast::<object::Builtin>().ok()?;
+            Some(f.func.as_ref()(&args))
+        }
+        _ => Some(Box::new(object::Error {
+            message: format!("not a function: {:?}", func_type),
+        })),
     }
-
-    Some(Box::new(object::Error {
-        message: format!("not a function: {:?}", func_type),
-    }))
 }
 
 fn extend_function_env(func: &object::Function, args: Vec<Box<dyn Object>>) -> Environment {
     let mut enclosed_env = Environment::new_enclosed(Rc::downgrade(&func.env));
 
     for (index, param) in func.parameters.iter().enumerate() {
-        // TODO: 这个地方好像只能 clone，如果想要 swap_remove 需要 args 是可变的
         enclosed_env.set(
             param.value.clone(),
             dyn_clone::clone_box(args[index].as_ref()),
@@ -201,7 +317,6 @@ fn eval_minus_prefix_operator_expression(
     }))
 }
 
-// TODO: 有一个 lint 告诉我 local variable doesn't need to be boxed here，所以我改成了 Integer，但下面的方法又没有提醒
 fn eval_integer_infix_expression(
     left: Integer,
     operator: &str,
@@ -260,4 +375,55 @@ fn eval_boolean_infix_expression(
             ),
         })),
     }
+}
+
+fn eval_string_infix_expression(
+    left: StringObject,
+    operator: &str,
+    right: StringObject,
+) -> Option<Box<dyn Object>> {
+    match operator {
+        "+" => Some(Box::new(StringObject {
+            value: left.value + &right.value,
+        })),
+        _ => Some(Box::new(object::Error {
+            message: format!(
+                "unknown operator: {:?} {} {:?}",
+                left.object_type(),
+                operator,
+                right.object_type()
+            ),
+        })),
+    }
+}
+
+fn eval_hash_index_expression(
+    hash: &object::Hash,
+    index: Box<dyn Object>,
+) -> Option<Box<dyn Object>> {
+    let hash_key = match index.object_type() {
+        ObjectType::String => {
+            let str = index.as_any().downcast::<object::StringObject>().ok()?;
+            str.hash_key()
+        }
+        ObjectType::Integer => {
+            let integer = index.as_any().downcast::<object::Integer>().ok()?;
+            integer.hash_key()
+        }
+        ObjectType::Boolean => {
+            let boolean = index.as_any().downcast::<object::Boolean>().ok()?;
+            boolean.hash_key()
+        }
+        _ => {
+            return Some(Box::new(object::Error {
+                message: format!("unusable as hash key: {:?}", index.object_type()),
+            }));
+        }
+    };
+    return hash
+        .pairs
+        .get(&hash_key)
+        .map_or(Some(Box::new(object::Null)), |value| {
+            Some(dyn_clone::clone_box(value.value.as_ref()))
+        });
 }

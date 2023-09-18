@@ -26,7 +26,6 @@ impl Lexer {
     }
 
     pub fn next_token(&mut self) -> Token {
-        // TODO: can this be improved? Like removing the bool value
         let mut need_read_next = true;
         self.skip_whitespace();
         // can return value in `match`
@@ -72,6 +71,10 @@ impl Lexer {
                         '*' => Token::new(TokenType::Asterisk, current.to_string()),
                         '<' => Token::new(TokenType::LessThan, current.to_string()),
                         '>' => Token::new(TokenType::GreaterThan, current.to_string()),
+                        '"' => Token::new(TokenType::String, self.read_string()),
+                        '[' => Token::new(TokenType::LeftBracket, current.to_string()),
+                        ']' => Token::new(TokenType::RightBracket, current.to_string()),
+                        ':' => Token::new(TokenType::Colon, current.to_string()),
                         _ => {
                             if is_letter(current) {
                                 let identifier = self.read_identifier();
@@ -114,6 +117,19 @@ impl Lexer {
                 self.read_character();
             } else {
                 break;
+            }
+        }
+        self.input[start_position..self.position].to_owned()
+    }
+
+    fn read_string(&mut self) -> String {
+        let start_position = self.read_position;
+        self.read_character();
+        while let Some(current) = self.current_character {
+            if current == '"' || current == '\0' {
+                break;
+            } else {
+                self.read_character();
             }
         }
         self.input[start_position..self.position].to_owned()

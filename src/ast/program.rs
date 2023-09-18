@@ -1,7 +1,7 @@
 use crate::ast::traits::{Node, Statement};
-use crate::environment::Environment;
-use crate::evaluator::eval_program;
-use crate::object::Object;
+use crate::evaluator::environment::Environment;
+use crate::evaluator::eval::eval_program;
+use crate::evaluator::object::Object;
 use std::any::Any;
 use std::{cell::RefCell, rc::Rc};
 

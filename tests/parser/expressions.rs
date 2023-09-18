@@ -1,14 +1,17 @@
+use std::collections::HashMap;
+
 use crate::parser::helpers::{
-    get_first_expression, parse_program_from, test_boolean_literal, test_identifier,
-    test_integer_literal,
+    get_first_expression, parse_program_from, test_boolean_infix_expression, test_boolean_literal,
+    test_identifier, test_integer_infix_expression, test_integer_literal,
+    test_string_infix_expression,
 };
 use implement_parser::ast::expressions::{
-    Boolean, CallExpression, FunctionLiteral, Identifier, IfExpression, InfixExpression,
-    IntegerLiteral, PrefixExpression,
+    ArrayLiteral, Boolean, CallExpression, FunctionLiteral, HashLiteral, Identifier, IfExpression,
+    IndexExpression, InfixExpression, IntegerLiteral, PrefixExpression, StringLiteral,
 };
 use implement_parser::ast::program::Program;
 use implement_parser::ast::statements::ExpressionStatement;
-use implement_parser::ast::traits::Node;
+use implement_parser::ast::traits::{Expression, Node};
 
 use rstest::rstest;
 
@@ -144,11 +147,12 @@ fn test_parsing_infix_expression() {
 
         fn test_expression(&self, program: &Program) {
             let expression = get_first_expression::<InfixExpression>(program);
-
-            assert_eq!(expression.operator, self.operator);
-            test_integer_literal(expression.left.as_ref(), self.left_value);
-
-            test_integer_literal(expression.right.as_ref(), self.right_value);
+            test_integer_infix_expression(
+                expression,
+                self.left_value,
+                &self.operator,
+                self.right_value,
+            );
         }
     }
 
@@ -166,10 +170,12 @@ fn test_parsing_infix_expression() {
 
         fn test_expression(&self, program: &Program) {
             let expression = get_first_expression::<InfixExpression>(program);
-
-            assert_eq!(expression.operator, self.operator);
-            test_boolean_literal(expression.left.as_ref(), self.left_value);
-            test_boolean_literal(expression.right.as_ref(), self.right_value);
+            test_boolean_infix_expression(
+                expression,
+                self.left_value,
+                &self.operator,
+                self.right_value,
+            )
         }
     }
 
@@ -257,15 +263,7 @@ fn test_if_expression() {
     assert_eq!(program.statements.len(), 1);
 
     let if_expression = get_first_expression::<IfExpression>(&program);
-    let condition = if_expression
-        .condition
-        .as_any()
-        .downcast_ref::<InfixExpression>()
-        .unwrap();
-    assert_eq!(condition.left.string(), "x");
-    assert_eq!(condition.operator, "<");
-    assert_eq!(condition.right.string(), "y");
-
+    test_string_infix_expression(if_expression.condition.as_ref(), "x", "<", "y");
     let consequence = if_expression
         .consequence
         .statements
@@ -283,14 +281,7 @@ fn test_if_else_expression() {
     assert_eq!(program.statements.len(), 1);
 
     let if_expression = get_first_expression::<IfExpression>(&program);
-    let condition = if_expression
-        .condition
-        .as_any()
-        .downcast_ref::<InfixExpression>()
-        .unwrap();
-    assert_eq!(condition.left.string(), "x");
-    assert_eq!(condition.operator, "<");
-    assert_eq!(condition.right.string(), "y");
+    test_string_infix_expression(if_expression.condition.as_ref(), "x", "<", "y");
 
     let consequence = if_expression
         .consequence
@@ -330,9 +321,7 @@ fn test_function_literal_expression() {
                 .downcast_ref::<InfixExpression>()
         })
         .unwrap();
-    assert_eq!(expression.left.string(), "x");
-    assert_eq!(expression.operator, "+");
-    assert_eq!(expression.right.string(), "y");
+    test_string_infix_expression(expression, "x", "+", "y");
 }
 
 #[rstest]
@@ -360,20 +349,87 @@ fn test_call_expression_parsing() {
     test_identifier(call_expression.function.as_ref(), "add".to_owned());
     assert_eq!(call_expression.arguments.len(), 3);
     test_integer_literal(call_expression.arguments[0].as_ref(), 1);
+    test_integer_infix_expression(call_expression.arguments[1].as_ref(), 2, "*", 3);
+    test_integer_infix_expression(call_expression.arguments[2].as_ref(), 4, "+", 5);
+}
 
-    let second = call_expression.arguments[1]
-        .as_any()
-        .downcast_ref::<InfixExpression>()
-        .unwrap();
-    test_integer_literal(second.left.as_ref(), 2);
-    assert_eq!(second.operator, "*");
-    test_integer_literal(second.right.as_ref(), 3);
+#[test]
+fn test_string_literal_expression() {
+    let input = "\"hello world\"".to_owned();
+    let program = parse_program_from(input);
+    let literal = get_first_expression::<StringLiteral>(&program);
+    assert_eq!(literal.string(), "hello world");
+    assert_eq!(literal.value, "hello world");
+}
 
-    let third = call_expression.arguments[2]
-        .as_any()
-        .downcast_ref::<InfixExpression>()
-        .unwrap();
-    test_integer_literal(third.left.as_ref(), 4);
-    assert_eq!(third.operator, "+");
-    test_integer_literal(third.right.as_ref(), 5);
+#[test]
+fn test_parsing_array_literal() {
+    let input = "[1, 2 * 2, 3 + 3]".to_owned();
+    let program = parse_program_from(input);
+    let array = get_first_expression::<ArrayLiteral>(&program);
+    assert_eq!(array.elements.len(), 3);
+
+    test_integer_literal(array.elements[0].as_ref(), 1);
+    test_integer_infix_expression(array.elements[1].as_ref(), 2, "*", 2);
+    test_integer_infix_expression(array.elements[2].as_ref(), 3, "+", 3);
+}
+
+#[test]
+fn test_parsing_index_expression() {
+    let input = "myArray[1 + 1]".to_owned();
+    let program = parse_program_from(input);
+    let index_expression = get_first_expression::<IndexExpression>(&program);
+    test_identifier(index_expression.left.as_ref(), "myArray".to_owned());
+    test_integer_infix_expression(index_expression.index.as_ref(), 1, "+", 1);
+}
+
+#[test]
+fn test_parsing_hash_literals_string_keys() {
+    let input = r#"{"one": 1, "two": 2, "three": 3}"#.to_owned();
+    let program = parse_program_from(input);
+    let hash_literal = get_first_expression::<HashLiteral>(&program);
+    assert_eq!(hash_literal.pairs.len(), 3);
+    let expected: HashMap<&str, i64> = HashMap::from([("one", 1), ("two", 2), ("three", 3)]);
+    for (key, value) in hash_literal.pairs.iter() {
+        test_integer_literal(
+            value.as_ref(),
+            *expected.get(&key.string() as &str).unwrap(),
+        );
+    }
+}
+
+#[test]
+fn test_parsing_empty_hash_literals() {
+    let input = "{}".to_owned();
+    let program = parse_program_from(input);
+    let hash_literal = get_first_expression::<HashLiteral>(&program);
+    assert_eq!(hash_literal.pairs.len(), 0);
+}
+
+#[test]
+fn test_parsing_hash_literals_with_expressions() {
+    let input = r#"{"one": 0 + 1, "two": 10 - 8, "three": 15 / 5}"#.to_owned();
+    let program = parse_program_from(input);
+    let hash_literal = get_first_expression::<HashLiteral>(&program);
+    assert_eq!(hash_literal.pairs.len(), 3);
+    type TestMapType<'a> = HashMap<&'a str, Box<dyn Fn(&dyn Expression)>>;
+    let tests: TestMapType = HashMap::from([
+        (
+            "one",
+            Box::new(|e: &dyn Expression| test_integer_infix_expression(e, 0, "+", 1))
+                as Box<dyn Fn(&dyn Expression)>,
+        ),
+        (
+            "two",
+            Box::new(|e| test_integer_infix_expression(e, 10, "-", 8)),
+        ),
+        (
+            "three",
+            Box::new(|e| test_integer_infix_expression(e, 15, "/", 5)),
+        ),
+    ]);
+    for (key, value) in hash_literal.pairs.iter() {
+        let test_func = tests.get(&key.string() as &str).unwrap();
+        test_func(value.as_ref());
+    }
 }

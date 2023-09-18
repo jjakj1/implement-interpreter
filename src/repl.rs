@@ -1,5 +1,6 @@
 use crate::{
-    ast::traits::AsNode, environment::Environment, evaluator::eval, lexer::Lexer, parser::Parser,
+    ast::traits::AsNode, evaluator::environment::Environment, evaluator::eval::eval, lexer::Lexer,
+    parser::Parser,
 };
 use std::io::{self, Write};
 use std::{cell::RefCell, rc::Rc};
@@ -7,6 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 const PROMPT: &str = ">> ";
 
 pub fn start<W: Write>(mut output: W) -> io::Result<()> {
+    let env = Rc::new(RefCell::new(Environment::new()));
     loop {
         let mut line = String::new();
         write!(output, "{}", PROMPT)?;
@@ -22,8 +24,7 @@ pub fn start<W: Write>(mut output: W) -> io::Result<()> {
             continue;
         }
 
-        let env = Environment::new();
-        let evaluated = eval(program.as_node(), Rc::new(RefCell::new(env)));
+        let evaluated = eval(program.as_node(), Rc::clone(&env));
         if let Some(evaluated) = evaluated {
             writeln!(output, "{}", evaluated.inspect())?;
         }

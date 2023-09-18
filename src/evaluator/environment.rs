@@ -1,4 +1,4 @@
-use crate::object;
+use super::object;
 use std::collections::HashMap;
 use std::{cell::RefCell, rc::Weak};
 

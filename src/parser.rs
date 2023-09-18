@@ -1,10 +1,11 @@
-use lazy_static::lazy_static;
+use by_address::ByAddress;
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::ast::expressions::{
-    Boolean, CallExpression, FunctionLiteral, Identifier, IfExpression, InfixExpression,
-    IntegerLiteral, PrefixExpression,
+    ArrayLiteral, Boolean, CallExpression, FunctionLiteral, HashLiteral, Identifier, IfExpression,
+    IndexExpression, InfixExpression, IntegerLiteral, PrefixExpression, StringLiteral,
 };
 use crate::ast::program::Program;
 use crate::ast::statements::{BlockStatement, ExpressionStatement, LetStatement, ReturnStatement};
@@ -33,10 +34,11 @@ enum ExpressionPrecedence {
     Product = 5,     // *
     Prefix = 6,      // -x or !x
     Call = 7,        // myFunction(x)
+    Index = 8,
 }
 
-lazy_static! {
-    static ref PRECEDENCES: HashMap<TokenType, ExpressionPrecedence> = HashMap::from([
+static PRECEDENCES: Lazy<HashMap<TokenType, ExpressionPrecedence>> = Lazy::new(|| {
+    HashMap::from([
         (TokenType::Equal, ExpressionPrecedence::Equals),
         (TokenType::NotEqual, ExpressionPrecedence::Equals),
         (TokenType::LessThan, ExpressionPrecedence::LessGreater),
@@ -46,8 +48,11 @@ lazy_static! {
         (TokenType::Slash, ExpressionPrecedence::Product),
         (TokenType::Asterisk, ExpressionPrecedence::Product),
         (TokenType::LeftParen, ExpressionPrecedence::Call),
-    ]);
-}
+        (TokenType::LeftBracket, ExpressionPrecedence::Index),
+    ])
+});
+
+type HashLiteralPairsType = HashMap<ByAddress<Box<dyn Expression>>, Box<dyn Expression>>;
 
 impl Parser {
     pub fn new(lexer: Lexer) -> Parser {
@@ -71,6 +76,9 @@ impl Parser {
         );
         parser.register_prefix(TokenType::If, Rc::new(Parser::parse_if_expression));
         parser.register_prefix(TokenType::Function, Rc::new(Parser::parse_function_literal));
+        parser.register_prefix(TokenType::String, Rc::new(Parser::parse_string_literal));
+        parser.register_prefix(TokenType::LeftBracket, Rc::new(Parser::parse_array_literal));
+        parser.register_prefix(TokenType::LeftBrace, Rc::new(Parser::parse_hash_literal));
 
         parser.register_infix(TokenType::Plus, Rc::new(Parser::parse_infix_expression));
         parser.register_infix(TokenType::Minus, Rc::new(Parser::parse_infix_expression));
@@ -84,6 +92,10 @@ impl Parser {
             Rc::new(Parser::parse_infix_expression),
         );
         parser.register_infix(TokenType::LeftParen, Rc::new(Parser::parse_call_expression));
+        parser.register_infix(
+            TokenType::LeftBracket,
+            Rc::new(Parser::parse_index_expression),
+        );
         parser.next_token();
         parser.next_token();
         parser
@@ -95,10 +107,8 @@ impl Parser {
     }
 
     pub fn parse_program(&mut self) -> Program {
-        // TODO: improve error type
         let mut program = Program { statements: vec![] };
 
-        // TODO: 这个地方是不是只能 clone，take 的话原来的值就变成 None 了
         loop {
             if let Some(token) = self.current_token.clone() {
                 if token.token_type != TokenType::EOF {
@@ -401,7 +411,7 @@ impl Parser {
             .as_ref()
             .ok_or("Current token is None")?
             .clone();
-        let arguments = self.parse_call_arguments()?;
+        let arguments = self.parse_expression_list(TokenType::RightParen)?;
         Ok(Box::new(CallExpression {
             token,
             function: left,
@@ -409,10 +419,13 @@ impl Parser {
         }))
     }
 
-    fn parse_call_arguments(&mut self) -> Result<Vec<Box<dyn Expression>>, String> {
+    fn parse_expression_list(
+        &mut self,
+        end: TokenType,
+    ) -> Result<Vec<Box<dyn Expression>>, String> {
         let mut args = Vec::new();
         self.next_token();
-        if self.current_token_is(TokenType::RightParen) {
+        if self.current_token_is(end) {
             return Ok(args);
         }
 
@@ -427,8 +440,23 @@ impl Parser {
             }
         }
 
-        self.expect_peek_token(TokenType::RightParen)?;
+        self.expect_peek_token(end)?;
         Ok(args)
+    }
+
+    fn parse_index_expression(
+        &mut self,
+        left: Box<dyn Expression>,
+    ) -> Result<Box<dyn Expression>, String> {
+        let token = self
+            .current_token
+            .as_ref()
+            .ok_or("Current token is None")?
+            .clone();
+        self.next_token();
+        let index = self.parse_expression(ExpressionPrecedence::Lowest)?;
+        self.expect_peek_token(TokenType::RightBracket)?;
+        Ok(Box::new(IndexExpression { token, left, index }) as Box<dyn Expression>)
     }
 
     fn parse_block_statement(&mut self) -> Result<BlockStatement, String> {
@@ -448,6 +476,63 @@ impl Parser {
             self.next_token();
         }
         Ok(BlockStatement { token, statements })
+    }
+
+    fn parse_string_literal(&mut self) -> Result<Box<dyn Expression>, String> {
+        let token = self
+            .current_token
+            .as_ref()
+            .ok_or("Current token is None")?
+            .clone();
+        Ok(Box::new(StringLiteral {
+            token: token.clone(),
+            value: token.literal,
+        }) as Box<dyn Expression>)
+    }
+
+    fn parse_array_literal(&mut self) -> Result<Box<dyn Expression>, String> {
+        let token = self
+            .current_token
+            .as_ref()
+            .ok_or("Current token is None")?
+            .clone();
+        let elements = self.parse_expression_list(TokenType::RightBracket)?;
+        Ok(Box::new(ArrayLiteral { token, elements }) as Box<dyn Expression>)
+    }
+
+    fn parse_hash_literal(&mut self) -> Result<Box<dyn Expression>, String> {
+        let token = self
+            .current_token
+            .as_ref()
+            .ok_or("Current token is None")?
+            .clone();
+        let pairs = self.parse_expression_pair()?;
+        Ok(Box::new(HashLiteral { token, pairs }) as Box<dyn Expression>)
+    }
+
+    fn parse_expression_pair(&mut self) -> Result<HashLiteralPairsType, String> {
+        let mut pairs = HashMap::new();
+        self.next_token();
+        if self.current_token_is(TokenType::RightBrace) {
+            return Ok(pairs);
+        }
+
+        loop {
+            let key = self.parse_expression(ExpressionPrecedence::Lowest)?;
+            self.expect_peek_token(TokenType::Colon)?;
+            self.next_token();
+            let value = self.parse_expression(ExpressionPrecedence::Lowest)?;
+            pairs.insert(ByAddress(key), value);
+            if self.peek_token_is(TokenType::Comma) {
+                self.next_token();
+                self.next_token();
+            } else {
+                break;
+            }
+        }
+
+        self.expect_peek_token(TokenType::RightBrace)?;
+        Ok(pairs)
     }
 
     fn current_token_is(&self, token_type: TokenType) -> bool {

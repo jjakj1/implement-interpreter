@@ -1,12 +1,16 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use implement_parser::ast::program::Program;
 use implement_parser::ast::traits::Node;
-use implement_parser::environment::Environment;
-use implement_parser::evaluator::eval;
+use implement_parser::evaluator::environment::Environment;
+use implement_parser::evaluator::eval::eval;
+use implement_parser::evaluator::object::{
+    self, Array, Boolean, Error, Function, HashKey, Hashable, Integer, Null, Object, ObjectType,
+    StringObject,
+};
 use implement_parser::lexer::Lexer;
-use implement_parser::object::{Boolean, Error, Function, Integer, Null, Object};
 use implement_parser::parser::Parser;
 use rstest::rstest;
 
@@ -138,6 +142,7 @@ fn test_let_statements(#[case] input: String, #[case] expected: i64) {
 #[case("if (10 > 1) { true + false; }".to_owned(), "unknown operator: Boolean + Boolean".to_owned())]
 #[case("if (10 > 1) { if (10 > 1) { return true + false; } return 1; }".to_owned(), "unknown operator: Boolean + Boolean".to_owned())]
 #[case("foobar".to_owned(), "identifier not found: foobar".to_owned())]
+#[case("\"Hello\" - \"World!\"".to_owned(), "unknown operator: String - String".to_owned())]
 fn test_error_handling(#[case] input: String, #[case] expected_message: String) {
     let object = test_eval(input);
     let error = object.as_any().downcast::<Error>().unwrap();
@@ -180,4 +185,160 @@ fn test_closures() {
     let object = test_eval(input);
     let integer = object.as_any().downcast::<Integer>().unwrap();
     assert_eq!(integer.value, 4);
+}
+
+#[test]
+fn test_string_literal() {
+    let input = "\"Hello World!".to_owned();
+    let evaluated = test_eval(input);
+    let string = evaluated.as_any().downcast::<StringObject>().unwrap();
+    assert_eq!(string.value, "Hello World!");
+}
+
+#[test]
+fn test_string_concatenation() {
+    let input = r#""Hello" + " " + "World!""#.to_owned();
+    let evaluated = test_eval(input);
+    let string = evaluated.as_any().downcast::<StringObject>().unwrap();
+    assert_eq!(string.value, "Hello World!");
+}
+
+#[rstest]
+#[case(r#"len("")"#.to_owned(), "0".to_owned())]
+#[case(r#"len("four")"#.to_owned(), "4".to_owned())]
+#[case(r#"len("hello world")"#.to_owned(), "11".to_owned())]
+#[case(r#"len(1)"#.to_owned(), "argument to `len` not supported, got Integer".to_owned())]
+#[case(r#"len("one", "one")"#.to_owned(), "wrong number of arguments: got=2, want=1".to_owned())]
+fn test_builtin_functions(#[case] input: String, #[case] expected: String) {
+    let evaluated = test_eval(input);
+    match evaluated.object_type() {
+        ObjectType::Integer => {
+            let integer = evaluated.as_any().downcast::<Integer>().unwrap();
+            assert_eq!(integer.value.to_string(), expected);
+        }
+        ObjectType::Error => {
+            let error = evaluated.as_any().downcast::<Error>().unwrap();
+            assert_eq!(error.message, expected);
+        }
+        _ => {
+            panic!("object is of type: {:?}", evaluated.object_type());
+        }
+    }
+}
+
+#[test]
+fn test_array_literals() {
+    let input = "[1, 2 * 2, 3 + 3]".to_owned();
+    let evaluated = test_eval(input);
+    // TODO: 这个 as_any() 的结果如果使用 downcast_ref 就会被马上释放掉。所以只能 downcast
+    // temporary value dropped while borrowed
+    // creates a temporary value which is freed while still in use
+    // Object 在 as_any 的时候会被 move 掉
+    let array = evaluated.as_any().downcast::<Array>().unwrap();
+    assert_eq!(array.elements.len(), 3);
+
+    // TODO: 加一个拿到 &self 返回 &dyn Any 的 as_borrowed_any 应该就能不用 clone 了
+    let first = dyn_clone::clone_box(array.elements[0].as_ref())
+        .as_any()
+        .downcast::<Integer>()
+        .unwrap();
+    assert_eq!(first.value, 1);
+    let second = dyn_clone::clone_box(array.elements[1].as_ref())
+        .as_any()
+        .downcast::<Integer>()
+        .unwrap();
+    assert_eq!(second.value, 4);
+    let third = dyn_clone::clone_box(array.elements[2].as_ref())
+        .as_any()
+        .downcast::<Integer>()
+        .unwrap();
+    assert_eq!(third.value, 6);
+}
+
+#[rstest]
+#[case("[1, 2, 3][0]".to_owned(), Some(1))]
+#[case("[1, 2, 3][1]".to_owned(), Some(2))]
+#[case("[1, 2, 3][2]".to_owned(), Some(3))]
+#[case("let i = 0; [1][i];".to_owned(), Some(1))]
+#[case("[1, 2, 3][1 + 1]".to_owned(), Some(3))]
+#[case("let myArray = [1, 2, 3]; myArray[2];".to_owned(), Some(3))]
+#[case("let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];".to_owned(), Some(6))]
+#[case("let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i];".to_owned(), Some(2))]
+#[case("[1, 2, 3][3]".to_owned(), None)]
+#[case("[1, 2, 3][-1]".to_owned(), None)]
+fn test_array_index_expression(#[case] input: String, #[case] expected: Option<i64>) {
+    let evaluated = test_eval(input);
+    if let Some(expected) = expected {
+        let integer = evaluated.as_any().downcast::<Integer>().unwrap();
+        assert_eq!(integer.value, expected);
+    } else {
+        assert!(evaluated.as_any().downcast::<Null>().is_ok())
+    }
+}
+
+#[test]
+fn test_hash_literals() {
+    let input = r#"let two = "two";
+        {
+            "one": 10 - 9,
+            two: 1 + 1,
+            "thr" + "ee": 6 / 2,
+            4: 4,
+            true: 5,
+            false: 6
+        }
+        "#
+    .to_owned();
+    let evaluated = test_eval(input);
+    let mut hash = evaluated.as_any().downcast::<object::Hash>().unwrap();
+    let expected: HashMap<HashKey, i64> = HashMap::from([
+        (
+            StringObject {
+                value: "one".to_owned(),
+            }
+            .hash_key(),
+            1,
+        ),
+        (
+            StringObject {
+                value: "two".to_owned(),
+            }
+            .hash_key(),
+            2,
+        ),
+        (
+            StringObject {
+                value: "three".to_owned(),
+            }
+            .hash_key(),
+            3,
+        ),
+        (Integer { value: 4 }.hash_key(), 4),
+        (Boolean::True.hash_key(), 5),
+        (Boolean::False.hash_key(), 6),
+    ]);
+    assert_eq!(hash.pairs.len(), expected.len());
+    for (expected_key, expected_value) in expected {
+        let pair = hash.pairs.remove(&expected_key).unwrap();
+        let integer = pair.value.as_any().downcast::<Integer>().unwrap();
+        assert_eq!(integer.value, expected_value);
+    }
+}
+
+#[rstest]
+#[case(r#"{"foo": 5}["foo"]"#.to_owned(), Some(5))]
+#[case(r#"{"foo": 5}["bar"]"#.to_owned(), None)]
+#[case(r#"let key = "foo"; {"foo": 5}[key]"#.to_owned(), Some(5))]
+#[case(r#"{}["foo"]"#.to_owned(), None)]
+#[case(r#"{5: 5}[5]"#.to_owned(), Some(5))]
+#[case(r#"{true: 5}[true]"#.to_owned(), Some(5))]
+#[case(r#"{false: 5}[false]"#.to_owned(), Some(5))]
+fn test_hash_index_expression(#[case] input: String, #[case] expected: Option<i64>) {
+    let evaluated = test_eval(input);
+    if let Some(expected) = expected {
+        let value = evaluated.as_any().downcast::<object::Integer>().unwrap();
+        assert_eq!(value.value, expected);
+    } else {
+        assert!(evaluated.as_any().downcast::<object::Null>().is_ok());
+    }
 }
