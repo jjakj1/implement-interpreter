@@ -31,7 +31,7 @@ pub fn start<W: Write>(mut output: W) -> io::Result<()> {
     }
 }
 
-fn print_parser_errors<W: Write>(output: &mut W, errors: &Vec<String>) -> io::Result<()> {
+fn print_parser_errors<W: Write>(output: &mut W, errors: &[String]) -> io::Result<()> {
     writeln!(output, "Woops! We ran into some monkey bussiness here!")?;
     writeln!(output, " parser errors:")?;
     for error in errors {

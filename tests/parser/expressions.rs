@@ -268,7 +268,7 @@ fn test_if_expression() {
         .consequence
         .statements
         .first()
-        .and_then(|statement| statement.as_any().downcast_ref::<ExpressionStatement>())
+        .and_then(|statement| statement.downcast_ref::<ExpressionStatement>())
         .unwrap();
     test_identifier(consequence.expression.as_ref(), "x".to_owned());
     assert!(if_expression.alternative.is_none());
@@ -287,14 +287,14 @@ fn test_if_else_expression() {
         .consequence
         .statements
         .first()
-        .and_then(|statement| statement.as_any().downcast_ref::<ExpressionStatement>())
+        .and_then(|statement| statement.downcast_ref::<ExpressionStatement>())
         .unwrap();
     test_identifier(consequence.expression.as_ref(), "x".to_owned());
     let alternative = if_expression
         .alternative
         .as_ref()
         .and_then(|alt| alt.statements.first())
-        .and_then(|statement| statement.as_any().downcast_ref::<ExpressionStatement>())
+        .and_then(|statement| statement.downcast_ref::<ExpressionStatement>())
         .unwrap();
     test_identifier(alternative.expression.as_ref(), "y".to_owned());
 }
@@ -312,12 +312,10 @@ fn test_function_literal_expression() {
 
     assert_eq!(function_literal.body.statements.len(), 1);
     let expression = function_literal.body.statements[0]
-        .as_any()
         .downcast_ref::<ExpressionStatement>()
         .and_then(|expression_statement| {
             expression_statement
                 .expression
-                .as_any()
                 .downcast_ref::<InfixExpression>()
         })
         .unwrap();

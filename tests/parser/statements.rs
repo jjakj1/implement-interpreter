@@ -18,7 +18,7 @@ fn test_let_statements(
     let statement = program
         .statements
         .first()
-        .and_then(|statement| statement.as_any().downcast_ref::<LetStatement>())
+        .and_then(|statement| statement.downcast_ref::<LetStatement>())
         .unwrap();
     assert_eq!(statement.token_literal(), "let");
     assert_eq!(statement.name.string(), expected_identifier);
@@ -37,7 +37,6 @@ fn test_return_statements() {
     assert_eq!(program.statements.len(), 3);
     for statment in program.statements.iter() {
         let return_statement = statment
-            .as_any()
             .downcast_ref::<ReturnStatement>()
             .expect("statement is not `ReturnStatment` type");
         assert_eq!(return_statement.token_literal(), "return")

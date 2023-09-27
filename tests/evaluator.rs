@@ -49,7 +49,7 @@ fn test_eval(input: String) -> Box<dyn Object> {
 #[case::infix("(5 + 10 * 2 + 15 / 3) * 2 + -10".to_owned(), 50)]
 fn test_eval_integer_expression(#[case] input: String, #[case] expected: i64) {
     let object = test_eval(input);
-    let integer = object.as_any().downcast::<Integer>().unwrap();
+    let integer = object.downcast_ref::<Integer>().unwrap();
     assert_eq!(integer.value, expected);
 }
 
@@ -75,7 +75,7 @@ fn test_eval_integer_expression(#[case] input: String, #[case] expected: i64) {
 #[case::infix("(1 > 2) == false".to_owned(), true)]
 fn test_eval_boolean_expression(#[case] input: String, #[case] expected: bool) {
     let object = test_eval(input);
-    let boolean = object.as_any().downcast::<Boolean>().unwrap();
+    let boolean = object.downcast_ref::<Boolean>().unwrap();
     assert_eq!(boolean.value(), expected);
 }
 
@@ -90,10 +90,10 @@ fn test_eval_boolean_expression(#[case] input: String, #[case] expected: bool) {
 fn test_if_else_expression(#[case] input: String, #[case] expected: Option<i64>) {
     let object = test_eval(input);
     if let Some(expected) = expected {
-        let integer = object.as_any().downcast::<Integer>().unwrap();
+        let integer = object.downcast_ref::<Integer>().unwrap();
         assert_eq!(integer.value, expected);
     } else {
-        assert!(object.as_any().downcast_ref::<Null>().is_some());
+        assert!(object.downcast_ref::<Null>().is_some());
     }
 }
 
@@ -106,7 +106,7 @@ fn test_if_else_expression(#[case] input: String, #[case] expected: Option<i64>)
 #[case("!!5".to_owned(), true)]
 fn test_bang_operator(#[case] input: String, #[case] expected: bool) {
     let object = test_eval(input);
-    let boolean = object.as_any().downcast::<Boolean>().unwrap();
+    let boolean = object.downcast_ref::<Boolean>().unwrap();
     assert_eq!(boolean.value(), expected);
 }
 
@@ -118,7 +118,7 @@ fn test_bang_operator(#[case] input: String, #[case] expected: bool) {
 #[case::nested("if (10 > 1) { if (10 > 1) { return 10; } return 1; }".to_owned(), 10)]
 fn test_return_statement(#[case] input: String, #[case] expected: i64) {
     let object = test_eval(input);
-    let integer = object.as_any().downcast::<Integer>().unwrap();
+    let integer = object.downcast_ref::<Integer>().unwrap();
     assert_eq!(integer.value, expected);
 }
 
@@ -129,7 +129,7 @@ fn test_return_statement(#[case] input: String, #[case] expected: i64) {
 #[case("let a = 5; let b = a; let c = a + b + 5; c;".to_owned(), 15)]
 fn test_let_statements(#[case] input: String, #[case] expected: i64) {
     let object = test_eval(input);
-    let integer = object.as_any().downcast::<Integer>().unwrap();
+    let integer = object.downcast_ref::<Integer>().unwrap();
     assert_eq!(integer.value, expected);
 }
 
@@ -145,7 +145,7 @@ fn test_let_statements(#[case] input: String, #[case] expected: i64) {
 #[case("\"Hello\" - \"World!\"".to_owned(), "unknown operator: String - String".to_owned())]
 fn test_error_handling(#[case] input: String, #[case] expected_message: String) {
     let object = test_eval(input);
-    let error = object.as_any().downcast::<Error>().unwrap();
+    let error = object.downcast_ref::<Error>().unwrap();
     assert_eq!(error.message, expected_message);
 }
 
@@ -153,7 +153,7 @@ fn test_error_handling(#[case] input: String, #[case] expected_message: String) 
 fn test_function_object() {
     let input = "fn(x) { x + 2; };".to_owned();
     let evaluated = test_eval(input);
-    let function = evaluated.as_any().downcast::<Function>().unwrap();
+    let function = evaluated.downcast_ref::<Function>().unwrap();
     assert_eq!(function.parameters.len(), 1);
     assert_eq!(function.parameters[0].string(), "x");
     assert_eq!(function.body.string(), "(x + 2)");
@@ -168,7 +168,7 @@ fn test_function_object() {
 #[case("fn(x) { x; }(5)".to_owned(), 5)]
 fn test_function_application(#[case] input: String, #[case] expected: i64) {
     let evaluated = test_eval(input);
-    let integer = evaluated.as_any().downcast::<Integer>().unwrap();
+    let integer = evaluated.downcast_ref::<Integer>().unwrap();
     assert_eq!(integer.value, expected);
 }
 
@@ -183,7 +183,7 @@ fn test_closures() {
         .to_owned();
 
     let object = test_eval(input);
-    let integer = object.as_any().downcast::<Integer>().unwrap();
+    let integer = object.downcast_ref::<Integer>().unwrap();
     assert_eq!(integer.value, 4);
 }
 
@@ -191,7 +191,7 @@ fn test_closures() {
 fn test_string_literal() {
     let input = "\"Hello World!".to_owned();
     let evaluated = test_eval(input);
-    let string = evaluated.as_any().downcast::<StringObject>().unwrap();
+    let string = evaluated.downcast_ref::<StringObject>().unwrap();
     assert_eq!(string.value, "Hello World!");
 }
 
@@ -199,7 +199,7 @@ fn test_string_literal() {
 fn test_string_concatenation() {
     let input = r#""Hello" + " " + "World!""#.to_owned();
     let evaluated = test_eval(input);
-    let string = evaluated.as_any().downcast::<StringObject>().unwrap();
+    let string = evaluated.downcast_ref::<StringObject>().unwrap();
     assert_eq!(string.value, "Hello World!");
 }
 
@@ -213,11 +213,11 @@ fn test_builtin_functions(#[case] input: String, #[case] expected: String) {
     let evaluated = test_eval(input);
     match evaluated.object_type() {
         ObjectType::Integer => {
-            let integer = evaluated.as_any().downcast::<Integer>().unwrap();
+            let integer = evaluated.downcast_ref::<Integer>().unwrap();
             assert_eq!(integer.value.to_string(), expected);
         }
         ObjectType::Error => {
-            let error = evaluated.as_any().downcast::<Error>().unwrap();
+            let error = evaluated.downcast_ref::<Error>().unwrap();
             assert_eq!(error.message, expected);
         }
         _ => {
@@ -230,28 +230,15 @@ fn test_builtin_functions(#[case] input: String, #[case] expected: String) {
 fn test_array_literals() {
     let input = "[1, 2 * 2, 3 + 3]".to_owned();
     let evaluated = test_eval(input);
-    // TODO: 这个 as_any() 的结果如果使用 downcast_ref 就会被马上释放掉。所以只能 downcast
-    // temporary value dropped while borrowed
-    // creates a temporary value which is freed while still in use
-    // Object 在 as_any 的时候会被 move 掉
-    let array = evaluated.as_any().downcast::<Array>().unwrap();
+    let array = evaluated.downcast_ref::<Array>().unwrap();
     assert_eq!(array.elements.len(), 3);
 
     // TODO: 加一个拿到 &self 返回 &dyn Any 的 as_borrowed_any 应该就能不用 clone 了
-    let first = dyn_clone::clone_box(array.elements[0].as_ref())
-        .as_any()
-        .downcast::<Integer>()
-        .unwrap();
+    let first = array.elements[0].downcast_ref::<Integer>().unwrap();
     assert_eq!(first.value, 1);
-    let second = dyn_clone::clone_box(array.elements[1].as_ref())
-        .as_any()
-        .downcast::<Integer>()
-        .unwrap();
+    let second = array.elements[1].downcast_ref::<Integer>().unwrap();
     assert_eq!(second.value, 4);
-    let third = dyn_clone::clone_box(array.elements[2].as_ref())
-        .as_any()
-        .downcast::<Integer>()
-        .unwrap();
+    let third = array.elements[2].downcast_ref::<Integer>().unwrap();
     assert_eq!(third.value, 6);
 }
 
@@ -269,10 +256,10 @@ fn test_array_literals() {
 fn test_array_index_expression(#[case] input: String, #[case] expected: Option<i64>) {
     let evaluated = test_eval(input);
     if let Some(expected) = expected {
-        let integer = evaluated.as_any().downcast::<Integer>().unwrap();
+        let integer = evaluated.downcast_ref::<Integer>().unwrap();
         assert_eq!(integer.value, expected);
     } else {
-        assert!(evaluated.as_any().downcast::<Null>().is_ok())
+        assert!(evaluated.as_any().downcast_ref::<Null>().is_some())
     }
 }
 
@@ -289,8 +276,8 @@ fn test_hash_literals() {
         }
         "#
     .to_owned();
-    let evaluated = test_eval(input);
-    let mut hash = evaluated.as_any().downcast::<object::Hash>().unwrap();
+    let mut evaluated = test_eval(input);
+    let hash = evaluated.downcast_mut::<object::Hash>().unwrap();
     let expected: HashMap<HashKey, i64> = HashMap::from([
         (
             StringObject {
@@ -320,7 +307,7 @@ fn test_hash_literals() {
     assert_eq!(hash.pairs.len(), expected.len());
     for (expected_key, expected_value) in expected {
         let pair = hash.pairs.remove(&expected_key).unwrap();
-        let integer = pair.value.as_any().downcast::<Integer>().unwrap();
+        let integer = pair.value.downcast_ref::<Integer>().unwrap();
         assert_eq!(integer.value, expected_value);
     }
 }
@@ -336,9 +323,9 @@ fn test_hash_literals() {
 fn test_hash_index_expression(#[case] input: String, #[case] expected: Option<i64>) {
     let evaluated = test_eval(input);
     if let Some(expected) = expected {
-        let value = evaluated.as_any().downcast::<object::Integer>().unwrap();
+        let value = evaluated.downcast_ref::<object::Integer>().unwrap();
         assert_eq!(value.value, expected);
     } else {
-        assert!(evaluated.as_any().downcast::<object::Null>().is_ok());
+        assert!(evaluated.downcast_ref::<object::Null>().is_some());
     }
 }

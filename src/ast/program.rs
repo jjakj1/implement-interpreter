@@ -2,7 +2,6 @@ use crate::ast::traits::{Node, Statement};
 use crate::evaluator::environment::Environment;
 use crate::evaluator::eval::eval_program;
 use crate::evaluator::object::Object;
-use std::any::Any;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone)]
@@ -11,10 +10,6 @@ pub struct Program {
 }
 
 impl Node for Program {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         self.statements
             .first()

@@ -18,5 +18,5 @@ fn test_string_hash_key() {
 
     assert_eq!(hello1.hash_key(), hello2.hash_key());
     assert_eq!(diff1.hash_key(), diff2.hash_key());
-    assert_eq!(hello1.hash_key(), diff1.hash_key());
+    assert_ne!(hello1.hash_key(), diff1.hash_key());
 }

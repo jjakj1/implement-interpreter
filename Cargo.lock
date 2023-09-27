@@ -30,6 +30,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "downcast-rs"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -141,10 +147,11 @@ name = "implement-parser"
 version = "0.1.0"
 dependencies = [
  "by_address",
+ "downcast-rs",
  "dyn-clone",
  "once_cell",
  "rstest",
- "users",
+ "uzers",
 ]
 
 [[package]]
@@ -307,10 +314,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "301abaae475aa91687eb82514b328ab47a211a533026cb25fc3e519b86adfc3c"
 
 [[package]]
-name = "users"
-version = "0.11.0"
+name = "uzers"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24cc0f6d6f267b73e5a2cadf007ba8f9bc39c6a6f9666f8cf25ea809a153b032"
+checksum = "76d283dc7e8c901e79e32d077866eaf599156cbf427fffa8289aecc52c5c3f63"
 dependencies = [
  "libc",
  "log",

@@ -9,7 +9,6 @@ use crate::evaluator::eval::{
 use crate::evaluator::object::{self, Array, Function, StringObject};
 use crate::token::Token;
 use by_address::ByAddress;
-use std::any::Any;
 use std::collections::HashMap;
 use std::{cell::RefCell, rc::Rc};
 
@@ -21,10 +20,6 @@ pub struct Identifier {
 }
 
 impl Node for Identifier {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -53,10 +48,6 @@ pub struct IntegerLiteral {
 }
 
 impl Node for IntegerLiteral {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -84,10 +75,6 @@ pub struct Boolean {
 }
 
 impl Node for Boolean {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -121,10 +108,6 @@ pub struct IfExpression {
 }
 
 impl Node for IfExpression {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -147,7 +130,7 @@ impl Node for IfExpression {
         environment: Rc<RefCell<Environment>>,
     ) -> Option<Box<dyn object::Object>> {
         let condition = eval(self.condition.as_node(), environment.clone());
-        if is_error(&condition) {
+        if is_error(condition.as_deref()) {
             return condition;
         }
 
@@ -173,10 +156,6 @@ pub struct FunctionLiteral {
 }
 
 impl Node for FunctionLiteral {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -220,10 +199,6 @@ pub struct CallExpression {
 }
 
 impl Node for CallExpression {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -243,11 +218,11 @@ impl Node for CallExpression {
         environment: Rc<RefCell<Environment>>,
     ) -> Option<Box<dyn object::Object>> {
         let func = eval(self.function.as_node(), environment.clone());
-        if is_error(&func) {
+        if is_error(func.as_deref()) {
             return func;
         }
         let params = eval_expressions(&self.arguments, environment)?;
-        apply_function(func?, params)
+        apply_function(func?, &params)
     }
 }
 
@@ -263,10 +238,6 @@ pub struct PrefixExpression {
 }
 
 impl Node for PrefixExpression {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -280,7 +251,7 @@ impl Node for PrefixExpression {
         environment: Rc<RefCell<Environment>>,
     ) -> Option<Box<dyn object::Object>> {
         let right = eval(self.right.as_node(), environment);
-        if is_error(&right) {
+        if is_error(right.as_deref()) {
             return right;
         }
         eval_prefix_expression(&self.operator, right)
@@ -300,10 +271,6 @@ pub struct InfixExpression {
 }
 
 impl Node for InfixExpression {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -322,11 +289,11 @@ impl Node for InfixExpression {
         environment: Rc<RefCell<Environment>>,
     ) -> Option<Box<dyn object::Object>> {
         let left = eval(self.left.as_node(), environment.clone());
-        if is_error(&left) {
+        if is_error(left.as_deref()) {
             return left;
         }
         let right = eval(self.right.as_node(), environment);
-        if is_error(&right) {
+        if is_error(right.as_deref()) {
             return right;
         }
         eval_infix_expression(left, &self.operator, right)
@@ -344,10 +311,6 @@ pub struct StringLiteral {
 }
 
 impl Node for StringLiteral {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn string(&self) -> String {
         self.value.clone()
     }
@@ -377,10 +340,6 @@ pub struct ArrayLiteral {
 }
 
 impl Node for ArrayLiteral {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn string(&self) -> String {
         let elements = self
             .elements
@@ -426,10 +385,6 @@ pub struct IndexExpression {
 }
 
 impl Node for IndexExpression {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn string(&self) -> String {
         format!("({}[{}])", self.left.string(), self.index.string())
     }
@@ -443,11 +398,11 @@ impl Node for IndexExpression {
         environment: Rc<RefCell<Environment>>,
     ) -> Option<Box<dyn object::Object>> {
         let left = eval(self.left.as_node(), Rc::clone(&environment));
-        if is_error(&left) {
+        if is_error(left.as_deref()) {
             return left;
         }
         let index = eval(self.index.as_node(), environment);
-        if is_error(&index) {
+        if is_error(index.as_deref()) {
             return index;
         }
         eval_index_expression(left, index)
@@ -465,10 +420,6 @@ pub struct HashLiteral {
 }
 
 impl Node for HashLiteral {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn string(&self) -> String {
         let key_values = self
             .pairs

@@ -21,7 +21,7 @@ pub fn eval_program(program: &Program, env: Rc<RefCell<Environment>>) -> Option<
         result = eval(statement.as_node(), env.clone());
         if let Some(object) = &result {
             if matches!(object.object_type(), ObjectType::ReturnValue) {
-                let return_object = result?.as_any().downcast::<object::ReturnValue>().ok()?;
+                let return_object = result?.downcast::<object::ReturnValue>().ok()?;
                 return Some(return_object.value);
             } else if matches!(object.object_type(), ObjectType::Error) {
                 return result;
@@ -62,6 +62,7 @@ pub fn eval_prefix_expression(
     }
 }
 
+// TODO: 把 Option 改成 Result
 pub fn eval_infix_expression(
     left: Option<Box<dyn Object>>,
     operator: &str,
@@ -72,21 +73,21 @@ pub fn eval_infix_expression(
     if matches!(left.object_type(), ObjectType::Integer)
         && matches!(right.object_type(), ObjectType::Integer)
     {
-        let left_integer = left.as_any().downcast::<Integer>().ok()?;
-        let right_integer = right.as_any().downcast::<Integer>().ok()?;
-        eval_integer_infix_expression(*left_integer, operator, *right_integer)
+        let left_integer = left.downcast_ref::<Integer>()?;
+        let right_integer = right.downcast_ref::<Integer>()?;
+        eval_integer_infix_expression(left_integer, operator, right_integer)
     } else if matches!(left.object_type(), ObjectType::Boolean)
         && matches!(right.object_type(), ObjectType::Boolean)
     {
-        let left_boolean = left.as_any().downcast::<Boolean>().ok()?;
-        let right_boolean = right.as_any().downcast::<Boolean>().ok()?;
-        eval_boolean_infix_expression(*left_boolean, operator, *right_boolean)
+        let left_boolean = left.as_any().downcast_ref::<Boolean>()?;
+        let right_boolean = right.as_any().downcast_ref::<Boolean>()?;
+        eval_boolean_infix_expression(left_boolean, operator, right_boolean)
     } else if matches!(left.object_type(), ObjectType::String)
         && matches!(right.object_type(), ObjectType::String)
     {
-        let left_string = left.as_any().downcast::<StringObject>().ok()?;
-        let right_string = right.as_any().downcast::<StringObject>().ok()?;
-        eval_string_infix_expression(*left_string, operator, *right_string)
+        let left_string = left.as_any().downcast_ref::<StringObject>()?;
+        let right_string = right.as_any().downcast_ref::<StringObject>()?;
+        eval_string_infix_expression(left_string, operator, right_string)
     } else if left.object_type() != right.object_type() {
         Some(Box::new(object::Error {
             message: format!(
@@ -109,13 +110,13 @@ pub fn eval_infix_expression(
 }
 
 pub fn eval_expressions(
-    exps: &Vec<Box<dyn Expression>>,
+    exps: &[Box<dyn Expression>],
     env: Rc<RefCell<Environment>>,
 ) -> Option<Vec<Box<dyn Object>>> {
     let mut results = Vec::new();
     for exp in exps {
         let object = eval(exp.as_node(), env.clone());
-        if is_error(&object) {
+        if is_error(object.as_deref()) {
             return Some(vec![object?]);
         }
         if let Some(res) = object {
@@ -151,8 +152,8 @@ pub fn eval_index_expression(
     if matches!(left.object_type(), ObjectType::Array)
         && matches!(index.object_type(), ObjectType::Integer)
     {
-        let array = left.as_any().downcast::<object::Array>().ok()?;
-        let index = index.as_any().downcast::<object::Integer>().ok()?;
+        let array = left.downcast_ref::<object::Array>()?;
+        let index = index.downcast_ref::<object::Integer>()?;
         if array.elements.len() <= index.value as usize || index.value < 0 {
             return Some(Box::new(object::Null));
         }
@@ -161,8 +162,8 @@ pub fn eval_index_expression(
             array.elements[index.value as usize].as_ref(),
         ));
     } else if matches!(left.object_type(), ObjectType::Hash) {
-        let hash = left.as_any().downcast::<object::Hash>().ok()?;
-        return eval_hash_index_expression(hash.as_ref(), index);
+        let hash = left.downcast_ref::<object::Hash>()?;
+        return eval_hash_index_expression(hash, index.as_ref());
     }
 
     Some(Box::new(object::Error {
@@ -177,21 +178,18 @@ pub fn eval_hash_literal(
     let mut pairs = HashMap::new();
     for (key, value) in node.pairs.iter() {
         let evaluated_key = eval(key.as_node(), Rc::clone(&env));
-        if is_error(&evaluated_key) {
+        if is_error(evaluated_key.as_deref()) {
             return evaluated_key;
         }
         let evaluated_value = eval(value.as_node(), Rc::clone(&env));
-        if is_error(&evaluated_value) {
+        if is_error(evaluated_value.as_deref()) {
             return evaluated_value;
         }
         let evaluated_key = evaluated_key?;
         let evaluated_value = evaluated_value?;
         match evaluated_key.object_type() {
             object::ObjectType::String => {
-                let str = evaluated_key
-                    .as_any()
-                    .downcast::<object::StringObject>()
-                    .ok()?;
+                let str = evaluated_key.downcast::<object::StringObject>().ok()?;
                 pairs.insert(
                     str.hash_key(),
                     HashPair {
@@ -201,7 +199,7 @@ pub fn eval_hash_literal(
                 );
             }
             object::ObjectType::Integer => {
-                let integer = evaluated_key.as_any().downcast::<object::Integer>().ok()?;
+                let integer = evaluated_key.downcast::<object::Integer>().ok()?;
                 pairs.insert(
                     integer.hash_key(),
                     HashPair {
@@ -211,7 +209,7 @@ pub fn eval_hash_literal(
                 );
             }
             object::ObjectType::Boolean => {
-                let boolean = evaluated_key.as_any().downcast::<object::Boolean>().ok()?;
+                let boolean = evaluated_key.downcast::<object::Boolean>().ok()?;
                 pairs.insert(
                     boolean.hash_key(),
                     HashPair {
@@ -242,7 +240,7 @@ pub fn is_truthy(object: Option<Box<dyn Object>>) -> Option<bool> {
     }
 }
 
-pub fn is_error(object: &Option<Box<dyn Object>>) -> bool {
+pub fn is_error(object: Option<&dyn Object>) -> bool {
     if let Some(object) = object {
         matches!(object.object_type(), ObjectType::Error)
     } else {
@@ -250,21 +248,19 @@ pub fn is_error(object: &Option<Box<dyn Object>>) -> bool {
     }
 }
 
-pub fn apply_function(
-    func: Box<dyn Object>,
-    args: Vec<Box<dyn Object>>,
-) -> Option<Box<dyn Object>> {
+pub fn apply_function(func: Box<dyn Object>, args: &[Box<dyn Object>]) -> Option<Box<dyn Object>> {
     let func_type = func.object_type();
     match func.object_type() {
         ObjectType::Function => {
-            let f = func.as_any().downcast::<object::Function>().ok()?;
-            let env = extend_function_env(f.as_ref(), args);
+            let f = func.downcast_ref::<object::Function>()?;
+            let env = extend_function_env(f, args);
             let object = eval(f.body.as_node(), Rc::new(RefCell::new(env)))?;
             Some(unwrap_return_value(object))
         }
         ObjectType::Builtin => {
-            let f = func.as_any().downcast::<object::Builtin>().ok()?;
-            Some(f.func.as_ref()(&args))
+            let f = func.downcast_ref::<object::Builtin>()?;
+            let args = args.iter().map(Box::as_ref).collect::<Vec<_>>();
+            Some((f.func)(&args))
         }
         _ => Some(Box::new(object::Error {
             message: format!("not a function: {:?}", func_type),
@@ -272,7 +268,7 @@ pub fn apply_function(
     }
 }
 
-fn extend_function_env(func: &object::Function, args: Vec<Box<dyn Object>>) -> Environment {
+fn extend_function_env(func: &object::Function, args: &[Box<dyn Object>]) -> Environment {
     let mut enclosed_env = Environment::new_enclosed(Rc::downgrade(&func.env));
 
     for (index, param) in func.parameters.iter().enumerate() {
@@ -287,7 +283,10 @@ fn extend_function_env(func: &object::Function, args: Vec<Box<dyn Object>>) -> E
 
 fn unwrap_return_value(object: Box<dyn Object>) -> Box<dyn Object> {
     if matches!(object.object_type(), ObjectType::ReturnValue) {
-        return object.as_any().downcast::<object::ReturnValue>().unwrap();
+        return object
+            .downcast::<object::ReturnValue>()
+            .map_err(|_| "Shouldn't happen.")
+            .unwrap();
     }
 
     object
@@ -311,16 +310,16 @@ fn eval_minus_prefix_operator_expression(
         }));
     }
 
-    let integer = right.as_any().downcast::<Integer>().ok()?;
+    let integer = right.downcast_ref::<Integer>()?;
     Some(Box::new(Integer {
         value: -integer.value,
     }))
 }
 
 fn eval_integer_infix_expression(
-    left: Integer,
+    left: &Integer,
     operator: &str,
-    right: Integer,
+    right: &Integer,
 ) -> Option<Box<dyn Object>> {
     match operator {
         "+" => Some(Box::new(Integer {
@@ -359,9 +358,9 @@ fn eval_integer_infix_expression(
 }
 
 fn eval_boolean_infix_expression(
-    left: Boolean,
+    left: &Boolean,
     operator: &str,
-    right: Boolean,
+    right: &Boolean,
 ) -> Option<Box<dyn Object>> {
     match operator {
         "==" => Some(Box::new(Boolean::from_native_bool(left == right))),
@@ -378,13 +377,13 @@ fn eval_boolean_infix_expression(
 }
 
 fn eval_string_infix_expression(
-    left: StringObject,
+    left: &StringObject,
     operator: &str,
-    right: StringObject,
+    right: &StringObject,
 ) -> Option<Box<dyn Object>> {
     match operator {
         "+" => Some(Box::new(StringObject {
-            value: left.value + &right.value,
+            value: left.value.clone() + &right.value,
         })),
         _ => Some(Box::new(object::Error {
             message: format!(
@@ -397,21 +396,18 @@ fn eval_string_infix_expression(
     }
 }
 
-fn eval_hash_index_expression(
-    hash: &object::Hash,
-    index: Box<dyn Object>,
-) -> Option<Box<dyn Object>> {
+fn eval_hash_index_expression(hash: &object::Hash, index: &dyn Object) -> Option<Box<dyn Object>> {
     let hash_key = match index.object_type() {
         ObjectType::String => {
-            let str = index.as_any().downcast::<object::StringObject>().ok()?;
+            let str = index.downcast_ref::<object::StringObject>()?;
             str.hash_key()
         }
         ObjectType::Integer => {
-            let integer = index.as_any().downcast::<object::Integer>().ok()?;
+            let integer = index.downcast_ref::<object::Integer>()?;
             integer.hash_key()
         }
         ObjectType::Boolean => {
-            let boolean = index.as_any().downcast::<object::Boolean>().ok()?;
+            let boolean = index.downcast_ref::<object::Boolean>()?;
             boolean.hash_key()
         }
         _ => {

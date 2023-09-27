@@ -4,7 +4,6 @@ use crate::evaluator::environment::Environment;
 use crate::evaluator::eval::{eval, eval_block_statement, is_error};
 use crate::evaluator::object;
 use crate::token::Token;
-use std::any::Any;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone)]
@@ -15,10 +14,6 @@ pub struct LetStatement {
 }
 
 impl Node for LetStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -39,7 +34,7 @@ impl Node for LetStatement {
         environment: Rc<RefCell<Environment>>,
     ) -> Option<Box<dyn object::Object>> {
         let value = eval(self.value.as_node(), environment.clone());
-        if is_error(&value) {
+        if is_error(value.as_deref()) {
             return value;
         }
         environment
@@ -59,10 +54,6 @@ pub struct ReturnStatement {
 }
 
 impl Node for ReturnStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -82,7 +73,7 @@ impl Node for ReturnStatement {
         environment: Rc<RefCell<Environment>>,
     ) -> Option<Box<dyn object::Object>> {
         let value = eval(self.return_value.as_node(), environment);
-        if is_error(&value) {
+        if is_error(value.as_deref()) {
             return value;
         }
         Some(Box::new(object::ReturnValue { value: value? }))
@@ -100,10 +91,6 @@ pub struct ExpressionStatement {
 }
 
 impl Node for ExpressionStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
@@ -135,10 +122,6 @@ pub struct BlockStatement {
 }
 
 impl Node for BlockStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn token_literal(&self) -> &str {
         &self.token.literal
     }
