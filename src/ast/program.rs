@@ -24,7 +24,7 @@ impl Node for Program {
         out
     }
 
-    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Option<Box<dyn Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn Object> {
         eval_program(self, environment)
     }
 }

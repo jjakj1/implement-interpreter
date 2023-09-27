@@ -22,9 +22,7 @@ pub trait Node: AsNode + DynClone {
     fn string(&self) -> String;
 
     // 这里还不能使用 &'static mut, 这种引用全局只能有一个，就没法继续传递了
-    fn eval_to_object(&self, _environment: Rc<RefCell<Environment>>) -> Option<Box<dyn Object>> {
-        None
-    }
+    fn eval_to_object(&self, _environment: Rc<RefCell<Environment>>) -> Box<dyn Object>;
 }
 
 dyn_clone::clone_trait_object!(Node);

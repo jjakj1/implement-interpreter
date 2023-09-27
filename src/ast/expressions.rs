@@ -28,10 +28,7 @@ impl Node for Identifier {
         self.value.clone()
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         eval_identifier(self, environment)
     }
 }
@@ -56,11 +53,8 @@ impl Node for IntegerLiteral {
         self.value.to_string()
     }
 
-    fn eval_to_object(
-        &self,
-        _environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
-        Some(Box::new(object::Integer { value: self.value }))
+    fn eval_to_object(&self, _environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
+        Box::new(object::Integer { value: self.value })
     }
 }
 
@@ -83,14 +77,11 @@ impl Node for Boolean {
         self.value.to_string()
     }
 
-    fn eval_to_object(
-        &self,
-        _environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, _environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         if self.value {
-            Some(Box::new(object::Boolean::True))
+            Box::new(object::Boolean::True)
         } else {
-            Some(Box::new(object::Boolean::False))
+            Box::new(object::Boolean::False)
         }
     }
 }
@@ -125,21 +116,18 @@ impl Node for IfExpression {
         result
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         let condition = eval(self.condition.as_node(), environment.clone());
-        if is_error(condition.as_deref()) {
+        if is_error(condition.as_ref()) {
             return condition;
         }
 
-        if is_truthy(condition)? {
+        if is_truthy(condition.as_ref()) {
             eval(self.consequence.as_node(), environment)
         } else if let Some(alternative) = &self.alternative {
             eval(alternative.as_node(), environment)
         } else {
-            Some(Box::new(object::Null))
+            Box::new(object::Null)
         }
     }
 }
@@ -175,15 +163,12 @@ impl Node for FunctionLiteral {
         )
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
-        Some(Box::new(Function {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
+        Box::new(Function {
             parameters: self.parameters.clone(),
             body: self.body.clone(),
             env: environment,
-        }))
+        })
     }
 }
 
@@ -213,16 +198,13 @@ impl Node for CallExpression {
         format!("{}({})", self.function.string(), args)
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         let func = eval(self.function.as_node(), environment.clone());
-        if is_error(func.as_deref()) {
+        if is_error(func.as_ref()) {
             return func;
         }
-        let params = eval_expressions(&self.arguments, environment)?;
-        apply_function(func?, &params)
+        let params = eval_expressions(&self.arguments, environment);
+        apply_function(func.as_ref(), &params)
     }
 }
 
@@ -246,15 +228,12 @@ impl Node for PrefixExpression {
         format!("({}{})", self.operator, self.right.string())
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         let right = eval(self.right.as_node(), environment);
-        if is_error(right.as_deref()) {
+        if is_error(right.as_ref()) {
             return right;
         }
-        eval_prefix_expression(&self.operator, right)
+        eval_prefix_expression(&self.operator, right.as_ref())
     }
 }
 
@@ -284,19 +263,16 @@ impl Node for InfixExpression {
         )
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         let left = eval(self.left.as_node(), environment.clone());
-        if is_error(left.as_deref()) {
+        if is_error(left.as_ref()) {
             return left;
         }
         let right = eval(self.right.as_node(), environment);
-        if is_error(right.as_deref()) {
+        if is_error(right.as_ref()) {
             return right;
         }
-        eval_infix_expression(left, &self.operator, right)
+        eval_infix_expression(left.as_ref(), &self.operator, right.as_ref())
     }
 }
 
@@ -319,13 +295,10 @@ impl Node for StringLiteral {
         &self.token.literal
     }
 
-    fn eval_to_object(
-        &self,
-        _environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
-        Some(Box::new(StringObject {
+    fn eval_to_object(&self, _environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
+        Box::new(StringObject {
             value: self.value.clone(),
-        }))
+        })
     }
 }
 
@@ -354,22 +327,18 @@ impl Node for ArrayLiteral {
         &self.token.literal
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
-        let elements = eval_expressions(&self.elements, environment)?;
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
+        let elements = eval_expressions(&self.elements, environment);
         if elements.len() == 1
             && matches!(
                 elements.get(0).unwrap().object_type(),
                 object::ObjectType::Error
             )
         {
-            let first = dyn_clone::clone_box(elements[0].as_ref());
-            return Some(first);
+            return dyn_clone::clone_box(elements[0].as_ref());
         }
 
-        Some(Box::new(Array { elements }))
+        Box::new(Array { elements })
     }
 }
 
@@ -393,19 +362,16 @@ impl Node for IndexExpression {
         &self.token.literal
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         let left = eval(self.left.as_node(), Rc::clone(&environment));
-        if is_error(left.as_deref()) {
+        if is_error(left.as_ref()) {
             return left;
         }
         let index = eval(self.index.as_node(), environment);
-        if is_error(index.as_deref()) {
+        if is_error(index.as_ref()) {
             return index;
         }
-        eval_index_expression(left, index)
+        eval_index_expression(left.as_ref(), index.as_ref())
     }
 }
 
@@ -434,10 +400,7 @@ impl Node for HashLiteral {
         &self.token.literal
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         eval_hash_literal(self, environment)
     }
 }

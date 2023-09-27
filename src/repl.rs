@@ -25,9 +25,7 @@ pub fn start<W: Write>(mut output: W) -> io::Result<()> {
         }
 
         let evaluated = eval(program.as_node(), Rc::clone(&env));
-        if let Some(evaluated) = evaluated {
-            writeln!(output, "{}", evaluated.inspect())?;
-        }
+        writeln!(output, "{}", evaluated.inspect())?;
     }
 }
 

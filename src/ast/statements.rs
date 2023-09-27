@@ -29,17 +29,15 @@ impl Node for LetStatement {
         out
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         let value = eval(self.value.as_node(), environment.clone());
-        if is_error(value.as_deref()) {
+        if is_error(value.as_ref()) {
             return value;
         }
         environment
             .borrow_mut()
-            .set(self.name.value.clone(), value?)
+            .set(self.name.value.clone(), value)
+            .unwrap_or(Box::new(object::Null))
     }
 }
 
@@ -68,15 +66,12 @@ impl Node for ReturnStatement {
         out
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         let value = eval(self.return_value.as_node(), environment);
-        if is_error(value.as_deref()) {
+        if is_error(value.as_ref()) {
             return value;
         }
-        Some(Box::new(object::ReturnValue { value: value? }))
+        Box::new(object::ReturnValue { value })
     }
 }
 
@@ -99,10 +94,7 @@ impl Node for ExpressionStatement {
         self.expression.string()
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         eval(self.expression.as_node(), environment)
     }
 }
@@ -134,10 +126,7 @@ impl Node for BlockStatement {
         result
     }
 
-    fn eval_to_object(
-        &self,
-        environment: Rc<RefCell<Environment>>,
-    ) -> Option<Box<dyn object::Object>> {
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
         eval_block_statement(self, environment)
     }
 }

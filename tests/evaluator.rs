@@ -28,7 +28,7 @@ fn parse_program_from(input: String) -> Program {
 fn test_eval(input: String) -> Box<dyn Object> {
     let program = parse_program_from(input);
     let env = Environment::new();
-    eval(&program, Rc::new(RefCell::new(env))).unwrap()
+    eval(&program, Rc::new(RefCell::new(env)))
 }
 
 #[rstest]
@@ -233,7 +233,6 @@ fn test_array_literals() {
     let array = evaluated.downcast_ref::<Array>().unwrap();
     assert_eq!(array.elements.len(), 3);
 
-    // TODO: 加一个拿到 &self 返回 &dyn Any 的 as_borrowed_any 应该就能不用 clone 了
     let first = array.elements[0].downcast_ref::<Integer>().unwrap();
     assert_eq!(first.value, 1);
     let second = array.elements[1].downcast_ref::<Integer>().unwrap();
