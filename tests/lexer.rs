@@ -27,7 +27,7 @@ fn test_simple_input_token() {
 
 #[test]
 fn test_source_code_token() {
-    let input = "let five = 5;
+    let input = r#"let five = 5;
         let ten = 10;
         let add = fn(x, y) {
             x + y;
@@ -46,10 +46,11 @@ fn test_source_code_token() {
 
         10 == 10;
         10 != 9;
-        \"foobar\"
-        \"foo bar\"
+        "foobar"
+        "foo bar"
         [1, 2];
-        {\"foo\": \"bar\"}";
+        {"foo": "bar"}
+        macro(x, y) { x + y;};"#;
 
     let tests = [
         (TokenType::Let, "let"),
@@ -137,6 +138,19 @@ fn test_source_code_token() {
         (TokenType::Colon, ":"),
         (TokenType::String, "bar"),
         (TokenType::RightBrace, "}"),
+        (TokenType::Macro, "macro"),
+        (TokenType::LeftParen, "("),
+        (TokenType::Ident, "x"),
+        (TokenType::Comma, ","),
+        (TokenType::Ident, "y"),
+        (TokenType::RightParen, ")"),
+        (TokenType::LeftBrace, "{"),
+        (TokenType::Ident, "x"),
+        (TokenType::Plus, "+"),
+        (TokenType::Ident, "y"),
+        (TokenType::Semicolon, ";"),
+        (TokenType::RightBrace, "}"),
+        (TokenType::Semicolon, ";"),
         (TokenType::EOF, ""),
     ];
 

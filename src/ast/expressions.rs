@@ -6,7 +6,8 @@ use crate::evaluator::eval::{
     apply_function, eval, eval_expressions, eval_hash_literal, eval_identifier,
     eval_index_expression, eval_infix_expression, eval_prefix_expression, is_error, is_truthy,
 };
-use crate::evaluator::object::{self, Array, Function, StringObject};
+use crate::evaluator::object::{self, Array, Function, Macro, StringObject};
+use crate::quote::quote;
 use crate::token::Token;
 use by_address::ByAddress;
 use std::collections::HashMap;
@@ -199,11 +200,24 @@ impl Node for CallExpression {
     }
 
     fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
+        if self.function.token_literal() == "quote" {
+            if let Some(first) = self.arguments.first() {
+                let first = dyn_clone::clone_box(first.as_ref());
+                return quote(&mut first.as_boxed_node(), Rc::clone(&environment));
+            } else {
+                return Box::new(object::Error {
+                    message: "`quote` needs to be called with one argument".to_owned(),
+                });
+            }
+        }
         let func = eval(self.function.as_node(), environment.clone());
         if is_error(func.as_ref()) {
             return func;
         }
-        let params = eval_expressions(&self.arguments, environment);
+        let mut params = eval_expressions(&self.arguments, environment);
+        if params.len() == 1 && is_error(params.first().unwrap().as_ref()) {
+            return params.swap_remove(0);
+        }
         apply_function(func.as_ref(), &params)
     }
 }
@@ -406,5 +420,40 @@ impl Node for HashLiteral {
 }
 
 impl Expression for HashLiteral {
+    fn expression_node(&self) {}
+}
+
+#[derive(Clone)]
+pub struct MacroLiteral {
+    pub token: Token,
+    pub parameters: Vec<Identifier>,
+    pub body: BlockStatement,
+}
+
+impl Node for MacroLiteral {
+    fn token_literal(&self) -> &str {
+        &self.token.literal
+    }
+
+    fn string(&self) -> String {
+        let params = self
+            .parameters
+            .iter()
+            .map(|ident| ident.string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("{}({}){}", self.token_literal(), params, self.body.string())
+    }
+
+    fn eval_to_object(&self, environment: Rc<RefCell<Environment>>) -> Box<dyn object::Object> {
+        Box::new(Macro {
+            parameters: self.parameters.clone(),
+            body: self.body.clone(),
+            env: environment,
+        })
+    }
+}
+
+impl Expression for MacroLiteral {
     fn expression_node(&self) {}
 }

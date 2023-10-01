@@ -1,3 +1,4 @@
+use crate::evaluator::macro_expansion::{define_macros, expand_macro};
 use crate::{
     ast::traits::AsNode, evaluator::environment::Environment, evaluator::eval::eval, lexer::Lexer,
     parser::Parser,
@@ -9,6 +10,7 @@ const PROMPT: &str = ">> ";
 
 pub fn start<W: Write>(mut output: W) -> io::Result<()> {
     let env = Rc::new(RefCell::new(Environment::new()));
+    let macro_env = Rc::new(RefCell::new(Environment::new()));
     loop {
         let mut line = String::new();
         write!(output, "{}", PROMPT)?;
@@ -17,13 +19,14 @@ pub fn start<W: Write>(mut output: W) -> io::Result<()> {
         io::stdin().read_line(&mut line)?;
         let lexer = Lexer::new(line);
         let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
+        let mut program = parser.parse_program();
 
         if !parser.error_messages.is_empty() {
             print_parser_errors(&mut output, &parser.error_messages)?;
             continue;
         }
-
+        define_macros(&mut program, Rc::clone(&macro_env));
+        expand_macro(&mut program, Rc::clone(&macro_env));
         let evaluated = eval(program.as_node(), Rc::clone(&env));
         writeln!(output, "{}", evaluated.inspect())?;
     }

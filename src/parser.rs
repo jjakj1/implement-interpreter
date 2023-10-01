@@ -5,7 +5,8 @@ use std::rc::Rc;
 
 use crate::ast::expressions::{
     ArrayLiteral, Boolean, CallExpression, FunctionLiteral, HashLiteral, Identifier, IfExpression,
-    IndexExpression, InfixExpression, IntegerLiteral, PrefixExpression, StringLiteral,
+    IndexExpression, InfixExpression, IntegerLiteral, MacroLiteral, PrefixExpression,
+    StringLiteral,
 };
 use crate::ast::program::Program;
 use crate::ast::statements::{BlockStatement, ExpressionStatement, LetStatement, ReturnStatement};
@@ -79,6 +80,7 @@ impl Parser {
         parser.register_prefix(TokenType::String, Rc::new(Parser::parse_string_literal));
         parser.register_prefix(TokenType::LeftBracket, Rc::new(Parser::parse_array_literal));
         parser.register_prefix(TokenType::LeftBrace, Rc::new(Parser::parse_hash_literal));
+        parser.register_prefix(TokenType::Macro, Rc::new(Parser::parse_macro_literal));
 
         parser.register_infix(TokenType::Plus, Rc::new(Parser::parse_infix_expression));
         parser.register_infix(TokenType::Minus, Rc::new(Parser::parse_infix_expression));
@@ -533,6 +535,22 @@ impl Parser {
 
         self.expect_peek_token(TokenType::RightBrace)?;
         Ok(pairs)
+    }
+
+    fn parse_macro_literal(&mut self) -> Result<Box<dyn Expression>, String> {
+        let token = self
+            .current_token
+            .as_ref()
+            .ok_or("Current token is None")?
+            .clone();
+        self.expect_peek_token(TokenType::LeftParen)?;
+        let parameters = self.parse_function_parameters()?;
+        self.expect_peek_token(TokenType::LeftBrace)?;
+        Ok(Box::new(MacroLiteral {
+            token,
+            parameters,
+            body: self.parse_block_statement()?,
+        }))
     }
 
     fn current_token_is(&self, token_type: TokenType) -> bool {

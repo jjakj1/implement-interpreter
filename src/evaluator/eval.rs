@@ -58,7 +58,6 @@ pub fn eval_prefix_expression(operator: &str, right: &dyn Object) -> Box<dyn Obj
     }
 }
 
-// TODO: 把 Option 改成 Result
 pub fn eval_infix_expression(
     left: &dyn Object,
     operator: &str,

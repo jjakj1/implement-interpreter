@@ -211,6 +211,8 @@ pub enum ObjectType {
     Builtin,
     Array,
     Hash,
+    Quote,
+    Macro,
 }
 
 pub trait Object: DynClone + Downcast {
@@ -454,5 +456,43 @@ impl Object for Hash {
 
     fn object_type(&self) -> ObjectType {
         ObjectType::Hash
+    }
+}
+
+#[derive(Clone)]
+pub struct Quote {
+    pub node: Box<dyn Node>,
+}
+
+impl Object for Quote {
+    fn object_type(&self) -> ObjectType {
+        ObjectType::Quote
+    }
+
+    fn inspect(&self) -> String {
+        format!("QUOTE({})", self.node.string())
+    }
+}
+
+#[derive(Clone)]
+pub struct Macro {
+    pub parameters: Vec<Identifier>,
+    pub body: BlockStatement,
+    pub env: Rc<RefCell<Environment>>,
+}
+
+impl Object for Macro {
+    fn inspect(&self) -> String {
+        let params = self
+            .parameters
+            .iter()
+            .map(|p| p.string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("macro ({}) {{\n{}\n}}", params, self.body.string())
+    }
+
+    fn object_type(&self) -> ObjectType {
+        ObjectType::Macro
     }
 }

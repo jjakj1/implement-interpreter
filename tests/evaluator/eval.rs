@@ -15,7 +15,7 @@ use implement_parser::parser::Parser;
 use rstest::rstest;
 
 // TODO：我本来想要把 parser 里面的 helpers 拿出来放在 tests 目录下，然后在这里引用。但试了下好像引用不到。目前我感觉好像 tests 中的各个文件都是一个单独的 crate 不能交叉引用。但不是很确定
-fn parse_program_from(input: String) -> Program {
+pub fn parse_program_from(input: String) -> Program {
     let lexer = Lexer::new(input);
     let mut parser = Parser::new(lexer);
     let program = parser.parse_program();
@@ -25,7 +25,7 @@ fn parse_program_from(input: String) -> Program {
     program
 }
 
-fn test_eval(input: String) -> Box<dyn Object> {
+pub fn test_eval(input: String) -> Box<dyn Object> {
     let program = parse_program_from(input);
     let env = Environment::new();
     eval(&program, Rc::new(RefCell::new(env)))

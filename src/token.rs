@@ -25,6 +25,7 @@ static KEYWORDS: Lazy<HashMap<&'static str, TokenType>> = Lazy::new(|| {
         ("if", TokenType::If),
         ("else", TokenType::Else),
         ("return", TokenType::Return),
+        ("macro", TokenType::Macro),
     ])
 });
 
@@ -65,4 +66,5 @@ pub enum TokenType {
     LeftBracket,
     RightBracket,
     Colon,
+    Macro,
 }

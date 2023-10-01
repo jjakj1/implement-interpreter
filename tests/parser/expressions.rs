@@ -7,7 +7,8 @@ use crate::parser::helpers::{
 };
 use implement_parser::ast::expressions::{
     ArrayLiteral, Boolean, CallExpression, FunctionLiteral, HashLiteral, Identifier, IfExpression,
-    IndexExpression, InfixExpression, IntegerLiteral, PrefixExpression, StringLiteral,
+    IndexExpression, InfixExpression, IntegerLiteral, MacroLiteral, PrefixExpression,
+    StringLiteral,
 };
 use implement_parser::ast::program::Program;
 use implement_parser::ast::statements::ExpressionStatement;
@@ -430,4 +431,20 @@ fn test_parsing_hash_literals_with_expressions() {
         let test_func = tests.get(&key.string() as &str).unwrap();
         test_func(value.as_ref());
     }
+}
+
+#[test]
+fn test_macro_literal_parsing() {
+    let input = "macro(x, y) { x + y; }".to_owned();
+    let program = parse_program_from(input);
+    assert_eq!(program.statements.len(), 1);
+    let macro_literal = get_first_expression::<MacroLiteral>(&program);
+    assert_eq!(macro_literal.parameters.len(), 2);
+    test_identifier(&macro_literal.parameters[0], "x".to_owned());
+    test_identifier(&macro_literal.parameters[1], "y".to_owned());
+    assert_eq!(macro_literal.body.statements.len(), 1);
+    let statement = macro_literal.body.statements[0]
+        .downcast_ref::<ExpressionStatement>()
+        .unwrap();
+    test_string_infix_expression(statement.expression.as_ref(), "x", "+", "y");
 }
