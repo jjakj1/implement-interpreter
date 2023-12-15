@@ -1,7 +1,6 @@
 use by_address::ByAddress;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use crate::ast::expressions::{
     ArrayLiteral, Boolean, CallExpression, FunctionLiteral, HashLiteral, Identifier, IfExpression,
@@ -14,16 +13,16 @@ use crate::ast::traits::{Expression, Statement};
 use crate::token::TokenType;
 use crate::{lexer::Lexer, token::Token};
 
-type PrefixParseFn = dyn Fn(&mut Parser) -> Result<Box<dyn Expression>, String>;
-type InfixParseFn = dyn Fn(&mut Parser, Box<dyn Expression>) -> Result<Box<dyn Expression>, String>;
+type PrefixParseFn = fn(&mut Parser) -> Result<Box<dyn Expression>, String>;
+type InfixParseFn = fn(&mut Parser, Box<dyn Expression>) -> Result<Box<dyn Expression>, String>;
 
 pub struct Parser {
     lexer: Lexer,
     current_token: Option<Token>,
     peek_token: Option<Token>,
     pub error_messages: Vec<String>,
-    prefix_parse_fns: HashMap<TokenType, Rc<PrefixParseFn>>,
-    infix_parse_fns: HashMap<TokenType, Rc<InfixParseFn>>,
+    prefix_parse_fns: HashMap<TokenType, PrefixParseFn>,
+    infix_parse_fns: HashMap<TokenType, InfixParseFn>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -65,39 +64,30 @@ impl Parser {
             prefix_parse_fns: HashMap::new(),
             infix_parse_fns: HashMap::new(),
         };
-        parser.register_prefix(TokenType::Ident, Rc::new(Parser::parse_identifier));
-        parser.register_prefix(TokenType::Int, Rc::new(Parser::parse_integer_literal));
-        parser.register_prefix(TokenType::Bang, Rc::new(Parser::parse_prefix_expression));
-        parser.register_prefix(TokenType::Minus, Rc::new(Parser::parse_prefix_expression));
-        parser.register_prefix(TokenType::True, Rc::new(Parser::parse_boolean));
-        parser.register_prefix(TokenType::False, Rc::new(Parser::parse_boolean));
-        parser.register_prefix(
-            TokenType::LeftParen,
-            Rc::new(Parser::parse_grouped_expression),
-        );
-        parser.register_prefix(TokenType::If, Rc::new(Parser::parse_if_expression));
-        parser.register_prefix(TokenType::Function, Rc::new(Parser::parse_function_literal));
-        parser.register_prefix(TokenType::String, Rc::new(Parser::parse_string_literal));
-        parser.register_prefix(TokenType::LeftBracket, Rc::new(Parser::parse_array_literal));
-        parser.register_prefix(TokenType::LeftBrace, Rc::new(Parser::parse_hash_literal));
-        parser.register_prefix(TokenType::Macro, Rc::new(Parser::parse_macro_literal));
+        parser.register_prefix(TokenType::Ident, Parser::parse_identifier);
+        parser.register_prefix(TokenType::Int, Parser::parse_integer_literal);
+        parser.register_prefix(TokenType::Bang, Parser::parse_prefix_expression);
+        parser.register_prefix(TokenType::Minus, Parser::parse_prefix_expression);
+        parser.register_prefix(TokenType::True, Parser::parse_boolean);
+        parser.register_prefix(TokenType::False, Parser::parse_boolean);
+        parser.register_prefix(TokenType::LeftParen, Parser::parse_grouped_expression);
+        parser.register_prefix(TokenType::If, Parser::parse_if_expression);
+        parser.register_prefix(TokenType::Function, Parser::parse_function_literal);
+        parser.register_prefix(TokenType::String, Parser::parse_string_literal);
+        parser.register_prefix(TokenType::LeftBracket, Parser::parse_array_literal);
+        parser.register_prefix(TokenType::LeftBrace, Parser::parse_hash_literal);
+        parser.register_prefix(TokenType::Macro, Parser::parse_macro_literal);
 
-        parser.register_infix(TokenType::Plus, Rc::new(Parser::parse_infix_expression));
-        parser.register_infix(TokenType::Minus, Rc::new(Parser::parse_infix_expression));
-        parser.register_infix(TokenType::Slash, Rc::new(Parser::parse_infix_expression));
-        parser.register_infix(TokenType::Asterisk, Rc::new(Parser::parse_infix_expression));
-        parser.register_infix(TokenType::Equal, Rc::new(Parser::parse_infix_expression));
-        parser.register_infix(TokenType::NotEqual, Rc::new(Parser::parse_infix_expression));
-        parser.register_infix(TokenType::LessThan, Rc::new(Parser::parse_infix_expression));
-        parser.register_infix(
-            TokenType::GreaterThan,
-            Rc::new(Parser::parse_infix_expression),
-        );
-        parser.register_infix(TokenType::LeftParen, Rc::new(Parser::parse_call_expression));
-        parser.register_infix(
-            TokenType::LeftBracket,
-            Rc::new(Parser::parse_index_expression),
-        );
+        parser.register_infix(TokenType::Plus, Parser::parse_infix_expression);
+        parser.register_infix(TokenType::Minus, Parser::parse_infix_expression);
+        parser.register_infix(TokenType::Slash, Parser::parse_infix_expression);
+        parser.register_infix(TokenType::Asterisk, Parser::parse_infix_expression);
+        parser.register_infix(TokenType::Equal, Parser::parse_infix_expression);
+        parser.register_infix(TokenType::NotEqual, Parser::parse_infix_expression);
+        parser.register_infix(TokenType::LessThan, Parser::parse_infix_expression);
+        parser.register_infix(TokenType::GreaterThan, Parser::parse_infix_expression);
+        parser.register_infix(TokenType::LeftParen, Parser::parse_call_expression);
+        parser.register_infix(TokenType::LeftBracket, Parser::parse_index_expression);
         parser.next_token();
         parser.next_token();
         parser
@@ -227,7 +217,7 @@ impl Parser {
                 "No prefix parse function for {:?} found",
                 token_type
             ))?;
-        let mut left_expression = Rc::clone(prefix_parse_function)(self)?;
+        let mut left_expression = prefix_parse_function(self)?;
 
         while !self.peek_token_is(TokenType::Semicolon)
             && (precedence as i32) < (self.peek_precedence() as i32)
@@ -239,9 +229,8 @@ impl Parser {
                 .token_type;
             match self.infix_parse_fns.get(&peek_token_type) {
                 Some(infix_parse_fn) => {
-                    let infix_parse_fn = Rc::clone(infix_parse_fn);
-                    self.next_token();
                     left_expression = infix_parse_fn(self, left_expression)?;
+                    self.next_token();
                 }
                 None => {
                     return Ok(left_expression);
@@ -580,11 +569,11 @@ impl Parser {
         }
     }
 
-    fn register_prefix(&mut self, token_type: TokenType, fn_ptr: Rc<PrefixParseFn>) {
+    fn register_prefix(&mut self, token_type: TokenType, fn_ptr: PrefixParseFn) {
         self.prefix_parse_fns.insert(token_type, fn_ptr);
     }
 
-    fn register_infix(&mut self, token_type: TokenType, fn_ptr: Rc<InfixParseFn>) {
+    fn register_infix(&mut self, token_type: TokenType, fn_ptr: InfixParseFn) {
         self.infix_parse_fns.insert(token_type, fn_ptr);
     }
 

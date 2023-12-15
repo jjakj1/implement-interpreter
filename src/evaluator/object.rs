@@ -4,51 +4,21 @@ use once_cell::sync::Lazy;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 use super::environment::Environment;
 use crate::ast::{expressions::Identifier, statements::BlockStatement, traits::Node};
 
-type BuiltinFunction = dyn Fn(&[&dyn Object]) -> Box<dyn Object> + Send + Sync + 'static;
+type BuiltinFunction = fn(&[&dyn Object]) -> Box<dyn Object>;
 
 pub static BUILTINS: Lazy<HashMap<&'static str, Builtin>> = Lazy::new(|| {
     HashMap::from([
-        (
-            "len",
-            Builtin {
-                func: Arc::new(object_len),
-            },
-        ),
-        (
-            "first",
-            Builtin {
-                func: Arc::new(array_first),
-            },
-        ),
-        (
-            "last",
-            Builtin {
-                func: Arc::new(array_last),
-            },
-        ),
-        (
-            "rest",
-            Builtin {
-                func: Arc::new(array_rest),
-            },
-        ),
-        (
-            "push",
-            Builtin {
-                func: Arc::new(array_push),
-            },
-        ),
-        (
-            "puts",
-            Builtin {
-                func: Arc::new(puts),
-            },
-        ),
+        ("len", Builtin { func: object_len }),
+        ("first", Builtin { func: array_first }),
+        ("last", Builtin { func: array_last }),
+        ("rest", Builtin { func: array_rest }),
+        ("push", Builtin { func: array_push }),
+        ("puts", Builtin { func: puts }),
     ])
 });
 
@@ -392,7 +362,7 @@ impl Object for StringObject {
 
 #[derive(Clone)]
 pub struct Builtin {
-    pub func: Arc<BuiltinFunction>,
+    pub func: BuiltinFunction,
 }
 
 impl Object for Builtin {

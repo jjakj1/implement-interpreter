@@ -14,52 +14,6 @@ use implement_parser::ast::traits::{Expression, Node, Statement};
 use implement_parser::token::{Token, TokenType};
 use rstest::rstest;
 
-#[test]
-fn test_string() {
-    let program = Program {
-        statements: vec![Box::new(LetStatement {
-            token: Token {
-                token_type: TokenType::Let,
-                literal: "let".to_owned(),
-            },
-            name: Identifier {
-                token: Token {
-                    token_type: TokenType::Ident,
-                    literal: "myVar".to_owned(),
-                },
-                value: "myVar".to_owned(),
-            },
-            value: Box::new(Identifier {
-                token: Token {
-                    token_type: TokenType::Ident,
-                    literal: "anotherVar".to_owned(),
-                },
-                value: "anotherVar".to_owned(),
-            }) as Box<dyn Expression>,
-        }) as Box<dyn Statement>],
-    };
-
-    assert_eq!(program.string(), "let myVar = anotherVar;");
-}
-
-#[rstest]
-#[case(&mut one(), &two())]
-#[case::program(&mut program(Box::new(one())), &program(Box::new(two())))]
-#[case::infix(&mut infix_expression(Box::new(one()), Box::new(two())), &infix_expression(Box::new(two()), Box::new(two())))]
-#[case::infix(&mut infix_expression(Box::new(two()), Box::new(two())), &infix_expression(Box::new(two()), Box::new(two())))]
-#[case::prefix(&mut prefix_expression(Box::new(one())), &prefix_expression(Box::new(two())))]
-#[case::index(&mut index_expression(Box::new(one()), Box::new(one())), &index_expression(Box::new(two()), Box::new(two())))]
-#[case::if_exp(&mut if_expression(Box::new(one()), Box::new(one()), Box::new(one())), &if_expression(Box::new(two()), Box::new(two()), Box::new(two())))]
-#[case::return_state(&mut return_statement(Box::new(one())), &return_statement(Box::new(two())))]
-#[case::let_state(&mut let_statement(Box::new(one())), &let_statement(Box::new(two())))]
-#[case::func(&mut function_literal(Box::new(one())), &function_literal(Box::new(two())))]
-#[case::array(&mut array_literal(Box::new(one()), Box::new(one())), &array_literal(Box::new(two()), Box::new(two())))]
-#[case::hash(&mut hash_literal(Box::new(one()), Box::new(one()), Box::new(one()), Box::new(one())), &hash_literal(Box::new(two()), Box::new(two()), Box::new(two()), Box::new(two())))]
-fn test_modify(#[case] input: &mut dyn Node, #[case] expected: &dyn Node) {
-    modify(input, &turn_one_into_two);
-    assert_eq!(input.string(), expected.string());
-}
-
 fn one() -> IntegerLiteral {
     IntegerLiteral {
         token: Token {
@@ -250,4 +204,50 @@ fn hash_literal(
         },
         pairs: HashMap::from([(ByAddress(key1), value1), (ByAddress(key2), value2)]),
     }
+}
+
+#[test]
+fn test_string() {
+    let program = Program {
+        statements: vec![Box::new(LetStatement {
+            token: Token {
+                token_type: TokenType::Let,
+                literal: "let".to_owned(),
+            },
+            name: Identifier {
+                token: Token {
+                    token_type: TokenType::Ident,
+                    literal: "myVar".to_owned(),
+                },
+                value: "myVar".to_owned(),
+            },
+            value: Box::new(Identifier {
+                token: Token {
+                    token_type: TokenType::Ident,
+                    literal: "anotherVar".to_owned(),
+                },
+                value: "anotherVar".to_owned(),
+            }) as Box<dyn Expression>,
+        }) as Box<dyn Statement>],
+    };
+
+    assert_eq!(program.string(), "let myVar = anotherVar;");
+}
+
+#[rstest]
+#[case(&mut one(), &two())]
+#[case::program(&mut program(Box::new(one())), &program(Box::new(two())))]
+#[case::infix(&mut infix_expression(Box::new(one()), Box::new(two())), &infix_expression(Box::new(two()), Box::new(two())))]
+#[case::infix(&mut infix_expression(Box::new(two()), Box::new(two())), &infix_expression(Box::new(two()), Box::new(two())))]
+#[case::prefix(&mut prefix_expression(Box::new(one())), &prefix_expression(Box::new(two())))]
+#[case::index(&mut index_expression(Box::new(one()), Box::new(one())), &index_expression(Box::new(two()), Box::new(two())))]
+#[case::if_exp(&mut if_expression(Box::new(one()), Box::new(one()), Box::new(one())), &if_expression(Box::new(two()), Box::new(two()), Box::new(two())))]
+#[case::return_state(&mut return_statement(Box::new(one())), &return_statement(Box::new(two())))]
+#[case::let_state(&mut let_statement(Box::new(one())), &let_statement(Box::new(two())))]
+#[case::func(&mut function_literal(Box::new(one())), &function_literal(Box::new(two())))]
+#[case::array(&mut array_literal(Box::new(one()), Box::new(one())), &array_literal(Box::new(two()), Box::new(two())))]
+#[case::hash(&mut hash_literal(Box::new(one()), Box::new(one()), Box::new(one()), Box::new(one())), &hash_literal(Box::new(two()), Box::new(two()), Box::new(two()), Box::new(two())))]
+fn test_modify(#[case] input: &mut dyn Node, #[case] expected: &dyn Node) {
+    modify(input, &turn_one_into_two);
+    assert_eq!(input.string(), expected.string());
 }
